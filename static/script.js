@@ -120,41 +120,57 @@ window.PIXI = PIXI;
         
         // Get model bounds
         const bounds = model.getBounds();
+        // Use internal model width/height if available for better accuracy, 
+        // but bounds is safer for visual fit.
         const modelWidth = bounds.width;
         const modelHeight = bounds.height;
 
         // Get screen size
         const screenWidth = app.screen.width;
         const screenHeight = app.screen.height;
+        const isMobile = window.innerWidth < 768;
 
-        // Calculate scale to fit 80% of the screen height (or width if mobile)
-        // We usually prioritize height for standing characters
+        // Calculate scale
+        // Mobile: Fill more space (90% width or height)
+        // Desktop: Standard 80%
+        const fitFactor = isMobile ? 0.95 : 0.8;
+        
         let scale = Math.min(
-            (screenWidth * 0.8) / modelWidth,
-            (screenHeight * 0.8) / modelHeight
+            (screenWidth * fitFactor) / modelWidth,
+            (screenHeight * fitFactor) / modelHeight
         );
+        
+        // Clamp scale to reasonable limits
+        scale = Math.max(0.1, Math.min(scale, 2.0));
 
         // Apply scale
         model.scale.set(scale, scale);
 
         // Center the model
-        // We need to account for the anchor or pivot. 
-        // pixi-live2d-display models usually have (0,0) at top-left by default.
-        model.x = (screenWidth - model.width) / 2;
+        // Recalculate dimensions after scaling
+        const scaledWidth = modelWidth * scale;
+        const scaledHeight = modelHeight * scale;
         
-        // Align bottom of model to near bottom of screen? Or center?
-        // Let's center vertically for now.
-        model.y = (screenHeight - model.height) / 2;
+        model.x = (screenWidth - scaledWidth) / 2;
+        
+        // Vertical Alignment
+        if (isMobile) {
+            // On mobile, maybe align lower to leave room for top content?
+            // But we have windows at bottom. Center is safest.
+            model.y = (screenHeight - scaledHeight) / 2;
+        } else {
+            model.y = (screenHeight - scaledHeight) / 2;
+        }
 
-        console.log(`Model scaled to ${scale.toFixed(2)} and centered at (${model.x.toFixed(0)}, ${model.y.toFixed(0)})`);
+        console.log(`Model scaled to ${scale.toFixed(2)} and centered.`);
     }
 
-    // Handle Window Resize
-    window.addEventListener('resize', () => {
+    // Handle Window Resize (Throttled)
+    window.addEventListener('resize', throttle(() => {
         if (app.stage.children.length > 0) {
             fitModelToScreen(app.stage.children[0]);
         }
-    });
+    }, 100));
 
     // 6. UI Logic & Model Management
     const modelList = document.getElementById('model-list');
@@ -506,7 +522,22 @@ window.PIXI = PIXI;
         }
     });
 
-    // --- Window Management (Dragging, Minimize, Opacity) ---
+    // --- Window Management (Dragging with Transform & Throttle) ---
+    
+    // Throttle Helper
+    function throttle(func, limit) {
+        let inThrottle;
+        return function() {
+            const args = arguments;
+            const context = this;
+            if (!inThrottle) {
+                func.apply(context, args);
+                inThrottle = true;
+                setTimeout(() => inThrottle = false, limit);
+            }
+        }
+    }
+
     function makeDraggable(windowId) {
         const win = document.getElementById(windowId);
         const header = win.querySelector('.window-header');
@@ -514,117 +545,81 @@ window.PIXI = PIXI;
         const opacitySlider = win.querySelector('.opacity-slider');
         
         let isDragging = false;
-        let startX, startY, initialLeft, initialTop;
+        let startX, startY;
+        
+        // We store the current translation
+        let translateX = 0;
+        let translateY = 0;
 
-        // 1. Dragging Logic
+        // 1. Dragging Logic (Transform based)
         header.addEventListener('mousedown', (e) => {
-            // Don't drag if clicking controls
             if (e.target === minimizeBtn || e.target === opacitySlider) return;
 
             isDragging = true;
             startX = e.clientX;
             startY = e.clientY;
             
-            // Get computed style for accurate starting position
-            const style = window.getComputedStyle(win);
-            initialLeft = parseInt(style.left || 0);
-            initialTop = parseInt(style.top || 0);
-            
-            // Bring to front
+            win.classList.add('dragging');
             win.style.zIndex = 1001;
-            document.body.style.userSelect = 'none'; // Prevent selection
+            document.body.style.userSelect = 'none';
         });
 
         window.addEventListener('mousemove', (e) => {
             if (!isDragging) return;
+            e.preventDefault(); 
 
             const dx = e.clientX - startX;
             const dy = e.clientY - startY;
 
-            let newLeft = initialLeft + dx;
-            let newTop = initialTop + dy;
+            translateX += dx;
+            translateY += dy;
 
-            // Get current dimensions
-            const rect = win.getBoundingClientRect();
-            const width = rect.width;
-            const height = rect.height;
-            const viewportWidth = window.innerWidth;
-            const viewportHeight = window.innerHeight;
+            win.style.transform = `translate(${translateX}px, ${translateY}px)`;
 
-            // --- Snapping to Edges (Alignment) ---
-            const SNAP_DIST = 20;
-            
-            // Snap Left
-            if (Math.abs(newLeft) < SNAP_DIST) newLeft = 20; // Indent 20px
-            // Snap Right
-            if (Math.abs(newLeft + width - viewportWidth) < SNAP_DIST) newLeft = viewportWidth - width - 20; // Indent 20px
-            // Snap Top
-            if (Math.abs(newTop) < SNAP_DIST) newTop = 20; // Indent 20px
-            // Snap Bottom
-            if (Math.abs(newTop + height - viewportHeight) < SNAP_DIST) newTop = viewportHeight - height - 20; // Indent 20px
-
-            // --- Collision Avoidance (Live2D Model) ---
-            // Disabled by user request: Windows should be able to cover the model
-            /*
-            if (currentModel) {
-                const modelBounds = currentModel.getBounds();
-                const SAFETY_MARGIN = 20;
-                
-                // Define Safe Zone (Model + Margin)
-                const safeZone = {
-                    left: modelBounds.x - SAFETY_MARGIN,
-                    right: modelBounds.x + modelBounds.width + SAFETY_MARGIN,
-                    top: modelBounds.y - SAFETY_MARGIN,
-                    bottom: modelBounds.y + modelBounds.height + SAFETY_MARGIN
-                };
-
-                // Proposed Window Rect
-                const proposedRect = {
-                    left: newLeft,
-                    right: newLeft + width,
-                    top: newTop,
-                    bottom: newTop + height
-                };
-
-                // Check Intersection
-                const isIntersecting = !(
-                    proposedRect.right < safeZone.left || 
-                    proposedRect.left > safeZone.right || 
-                    proposedRect.bottom < safeZone.top || 
-                    proposedRect.top > safeZone.bottom
-                );
-
-                if (isIntersecting) {
-                    // Collision detected! Prevent entering the safe zone.
-                    // We allow movement if it's moving *away* from the collision?
-                    // But determining "away" is complex with just rects.
-                    // The "solid wall" approach (blocking update) works best for dragging.
-                    return; 
-                }
-            }
-            */
-
-            win.style.left = `${newLeft}px`;
-            win.style.top = `${newTop}px`;
-            
-            // Reset bottom/right to auto if set, to switch to top/left positioning
-            win.style.bottom = 'auto';
-            win.style.right = 'auto';
+            startX = e.clientX;
+            startY = e.clientY;
         });
 
         window.addEventListener('mouseup', () => {
             if (isDragging) {
                 isDragging = false;
+                win.classList.remove('dragging');
+                // Keep zIndex high or reset? Let's keep it.
                 document.body.style.userSelect = '';
-                win.style.zIndex = 1000;
             }
+        });
+        
+        // Touch support
+        header.addEventListener('touchstart', (e) => {
+             if (e.target === minimizeBtn || e.target === opacitySlider) return;
+             isDragging = true;
+             const touch = e.touches[0];
+             startX = touch.clientX;
+             startY = touch.clientY;
+             win.classList.add('dragging');
+             win.style.zIndex = 1001;
+        }, {passive: false});
+
+        window.addEventListener('touchmove', (e) => {
+            if (!isDragging) return;
+            e.preventDefault(); 
+            const touch = e.touches[0];
+            const dx = touch.clientX - startX;
+            const dy = touch.clientY - startY;
+            translateX += dx;
+            translateY += dy;
+            win.style.transform = `translate(${translateX}px, ${translateY}px)`;
+            startX = touch.clientX;
+            startY = touch.clientY;
+        }, {passive: false});
+
+        window.addEventListener('touchend', () => {
+             isDragging = false;
+             win.classList.remove('dragging');
         });
 
         // 2. Minimize Logic
         let isMinimized = false;
-        // Store original dimensions
-        let originalHeight = win.style.height;
-        let originalWidth = win.style.width;
         
         minimizeBtn.addEventListener('click', () => {
             isMinimized = !isMinimized;
@@ -640,7 +635,6 @@ window.PIXI = PIXI;
         // 3. Opacity Logic
         opacitySlider.addEventListener('input', (e) => {
             const opacity = e.target.value;
-            // Apply opacity to background only (rgba)
             win.style.background = `rgba(0, 0, 0, ${opacity})`;
         });
     }

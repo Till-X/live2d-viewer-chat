@@ -538,3 +538,180 @@ button:disabled {
     border-right: 10px solid transparent;
     border-top: 10px solid white;
 }
+
+/* --- Responsive Design --- */
+
+/* Base: Mobile First / Variables */
+:root {
+    --mobile-breakpoint: 768px;
+    --tablet-breakpoint: 1200px;
+    --primary-color: #4CAF50;
+    --bg-dark: rgba(0, 0, 0, 0.85);
+    --text-color: white;
+    --spacing-unit: 1rem;
+}
+
+/* ... existing styles ... */
+
+/* Responsive adjustments */
+#ui-container {
+    width: 300px;
+    max-width: 90vw; /* Prevent overflow on small screens */
+}
+
+#chat-container {
+    width: 320px;
+    max-width: 90vw;
+}
+
+/* Draggable Window Transition for smooth resize/reposition (except during drag) */
+.draggable-window {
+    /* ... existing props ... */
+    will-change: transform, width, height;
+    /* transition: width 0.3s, height 0.3s;  <-- removed background transition to separate concerns */
+}
+
+/* When dragging, we might want to disable transition to avoid lag */
+.draggable-window.dragging {
+    transition: none !important;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.7);
+}
+
+
+/* Mobile Menu Button */
+#mobile-menu-btn {
+    display: none; /* Hidden on desktop */
+    position: fixed;
+    top: 15px;
+    left: 15px;
+    z-index: 2001; /* Above windows */
+    background: var(--bg-dark);
+    color: white;
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 8px;
+    width: 48px;
+    height: 48px;
+    font-size: 24px;
+    cursor: pointer;
+    backdrop-filter: blur(5px);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+}
+
+/* --- Media Queries --- */
+
+/* 1. Mobile Devices (< 768px) */
+@media screen and (max-width: 767px) {
+    #mobile-menu-btn {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+
+    /* Models Window -> Sidebar Drawer */
+    #ui-container {
+        position: fixed !important;
+        top: 0 !important;
+        left: -100% !important; /* Hidden off-screen */
+        width: 80% !important;
+        max-width: 300px !important;
+        height: 100% !important;
+        max-height: 100% !important;
+        border-radius: 0 !important;
+        transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        z-index: 2002 !important; /* Above everything */
+        border-right: 1px solid rgba(255,255,255,0.1);
+        display: flex !important;
+        flex-direction: column;
+    }
+
+    #ui-container.mobile-visible {
+        left: 0 !important;
+    }
+
+    #ui-container .window-header {
+        cursor: default; /* No dragging */
+        padding-top: 20px; /* Safe area */
+    }
+
+    #ui-container .minimize-btn, 
+    #ui-container .opacity-slider {
+        display: none; /* Simplify UI */
+    }
+
+    /* Chat Window -> Bottom Sheet */
+    #chat-container {
+        position: fixed !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        top: auto !important;
+        width: 100% !important;
+        height: 40vh !important;
+        max-height: 50vh !important;
+        border-radius: 20px 20px 0 0 !important;
+        border-left: none;
+        border-right: none;
+        border-bottom: none;
+        transition: height 0.3s ease;
+        padding-bottom: env(safe-area-inset-bottom, 20px);
+    }
+    
+    #chat-container.minimized {
+        height: 60px !important;
+        width: 100% !important;
+    }
+
+    #chat-container .window-header {
+        cursor: pointer; /* Tap to toggle minimize? */
+        justify-content: center;
+    }
+    
+    #chat-container .window-title {
+        font-size: 1.1em;
+    }
+
+    /* Adjust Inputs for Touch */
+    input[type="text"], 
+    button, 
+    .model-item {
+        min-height: 44px; /* Touch target size */
+        font-size: 16px; /* Prevent iOS zoom */
+    }
+
+    /* Speech Bubble on Mobile */
+    .speech-bubble {
+        bottom: 45vh; /* Above chat window */
+        width: 90%;
+        max-width: none;
+        font-size: 14px;
+        padding: 10px;
+    }
+
+    /* Hide settings panel better on mobile */
+    #settings-panel {
+        width: 90%;
+        max-width: none;
+    }
+}
+
+/* 2. Tablet Devices (768px - 1199px) */
+@media screen and (min-width: 768px) and (max-width: 1199px) {
+    /* Slightly compact UI */
+    #ui-container, #chat-container {
+        transform: scale(0.9);
+        transform-origin: top left;
+    }
+    
+    #chat-container {
+        transform-origin: bottom right;
+    }
+}
+
+/* 3. Desktop (>= 1200px) */
+@media screen and (min-width: 1200px) {
+    /* Standard Layout - already defined in main CSS */
+    /* Ensure fonts are legible on large screens */
+    body {
+        font-size: 16px;
+    }
+}
