@@ -564,6 +564,8 @@ window.PIXI = PIXI;
             if (Math.abs(newTop + height - viewportHeight) < SNAP_DIST) newTop = viewportHeight - height - 20; // Indent 20px
 
             // --- Collision Avoidance (Live2D Model) ---
+            // Disabled by user request: Windows should be able to cover the model
+            /*
             if (currentModel) {
                 const modelBounds = currentModel.getBounds();
                 const SAFETY_MARGIN = 20;
@@ -600,6 +602,7 @@ window.PIXI = PIXI;
                     return; 
                 }
             }
+            */
 
             win.style.left = `${newLeft}px`;
             win.style.top = `${newTop}px`;
