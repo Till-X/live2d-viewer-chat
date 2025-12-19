@@ -2,12 +2,15 @@ from fastapi import FastAPI, Request, File, UploadFile, HTTPException, Form
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 import os
 import shutil
 import zipfile
 import re
 from pathlib import Path
-from typing import List
+from typing import List, Optional
+import openai
+from openai import AsyncOpenAI
 
 app = FastAPI()
 
@@ -156,6 +159,103 @@ async def delete_model(model_name: str):
         return {"message": f"Model {model_name} deleted successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# --- Chat & LLM Integration ---
+
+# Initialize OpenAI Client (Volcengine Ark)
+# Note: In a real environment, set ARK_API_KEY env var.
+# We have set the default to your provided key for convenience.
+api_key = os.environ.get("ARK_API_KEY", "1dfed9d9-db49-4985-b4e9-1dcb090e5e93")
+client = AsyncOpenAI(
+    base_url="https://ark.cn-beijing.volces.com/api/v3",
+    api_key=api_key
+)
+
+# Global Configuration State
+class GlobalConfig:
+    def __init__(self):
+        self.system_prompt = "你是一个可爱的二次元少女，说话语气活泼，喜欢用emoji。"
+        self.history = [] # List of {"role": "user"|"assistant", "content": str}
+
+config = GlobalConfig()
+
+class ChatRequest(BaseModel):
+    text: str
+
+class SettingsRequest(BaseModel):
+    system_prompt: str
+
+@app.post("/api/chat")
+async def chat_endpoint(request: ChatRequest):
+    """
+    Send a message to the LLM and get a response.
+    Maintains context/history.
+    """
+    user_input = request.text
+    
+    # Add user message to history
+    config.history.append({"role": "user", "content": user_input})
+    
+    # Construct messages for the API call
+    messages = [
+        {"role": "system", "content": config.system_prompt}
+    ] + config.history
+    
+    try:
+        # Call OpenAI API (Ark)
+        # If using a placeholder key, return mock response.
+        if api_key == "YOUR_API_KEY":
+            # Mock response for testing without a real key
+            import asyncio
+            await asyncio.sleep(1) # Simulate delay
+            ai_response = f"This is a mock response because no ARK_API_KEY is set. You said: {user_input} 😸"
+        else:
+            completion = await client.chat.completions.create(
+                model="deepseek-v3-1-terminus",
+                messages=messages
+            )
+            ai_response = completion.choices[0].message.content
+            
+        # Add AI response to history
+        config.history.append({"role": "assistant", "content": ai_response})
+        
+        # Keep history manageable (e.g., last 10 turns)
+        if len(config.history) > 20:
+            config.history = config.history[-20:]
+            
+        return {"reply": ai_response}
+        
+    except Exception as e:
+        # Remove the user message if the API call failed so we don't have broken state
+        config.history.pop() 
+        print(f"Error calling OpenAI/Ark: {e}")
+        raise HTTPException(status_code=500, detail=f"LLM Error: {str(e)}")
+
+@app.get("/api/settings")
+async def get_settings():
+    """
+    Get current system prompt.
+    """
+    return {"system_prompt": config.system_prompt}
+
+@app.post("/api/settings")
+async def update_settings(request: SettingsRequest):
+    """
+    Update the system prompt.
+    """
+    config.system_prompt = request.system_prompt
+    # Optional: Clear history when personality changes? 
+    # The requirement didn't specify, but it's often good practice. 
+    # For now, we'll keep history as user might want to continue chat with new persona.
+    return {"message": "Settings updated", "system_prompt": config.system_prompt}
+
+@app.post("/api/reset")
+async def reset_chat():
+    """
+    Clear chat history.
+    """
+    config.history = []
+    return {"message": "Chat history cleared"}
 
 if __name__ == "__main__":
     import uvicorn

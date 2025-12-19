@@ -18,27 +18,76 @@
     <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display/dist/index.min.js"></script>
 </head>
 <body>
-    <div id="ui-container">
-        <div id="model-section">
-            <h3>Models</h3>
-            <div id="model-list-container">
-                <ul id="model-list">
-                    <!-- List items will be injected here -->
-                    <li class="loading-item">Loading models...</li>
-                </ul>
+    <div id="ui-container" class="draggable-window">
+        <div class="window-header">
+            <span class="window-title">Models</span>
+            <div class="window-controls">
+                <input type="range" class="opacity-slider" min="0.2" max="1" step="0.1" value="0.85" title="Opacity">
+                <button class="minimize-btn" title="Minimize">-</button>
             </div>
         </div>
-        
-        <div id="upload-section">
-            <h3>Upload New</h3>
-            <div class="input-group">
-                <input type="file" id="model-upload" accept=".zip" />
+        <div class="window-body">
+            <div id="model-section">
+                <div id="model-list-container">
+                    <ul id="model-list">
+                        <!-- List items will be injected here -->
+                        <li class="loading-item">Loading models...</li>
+                    </ul>
+                </div>
             </div>
-            <div class="input-group">
-                <input type="text" id="model-name-input" placeholder="Name (Optional, a-z0-9_)" maxlength="50" />
-                <span id="name-validation-msg"></span>
+            
+            <div id="upload-section">
+                <h3>Upload New</h3>
+                <div class="input-group">
+                    <input type="file" id="model-upload" accept=".zip" />
+                </div>
+                <div class="input-group">
+                    <input type="text" id="model-name-input" placeholder="Name (Optional, a-z0-9_)" maxlength="50" />
+                    <span id="name-validation-msg"></span>
+                </div>
+                <button id="upload-btn">Upload .zip</button>
             </div>
-            <button id="upload-btn">Upload .zip</button>
+        </div>
+    </div>
+
+    <!-- Speech Bubble -->
+    <div id="speech-bubble" class="speech-bubble hidden">
+        <div id="bubble-text">...</div>
+        <div class="bubble-arrow"></div>
+    </div>
+
+    <!-- Chat Interface -->
+    <div id="chat-container" class="draggable-window">
+        <div class="window-header">
+            <span class="window-title">Chat with Model</span>
+            <div class="window-controls">
+                 <input type="range" class="opacity-slider" min="0.2" max="1" step="0.1" value="0.85" title="Opacity">
+                <button class="minimize-btn" title="Minimize">-</button>
+            </div>
+        </div>
+        <div class="window-body">
+            <div id="chat-messages">
+                <!-- Messages will appear here -->
+            </div>
+            <div id="chat-input-area">
+                <input type="text" id="chat-input" placeholder="Say something..." autocomplete="off">
+                <button id="send-btn">Send</button>
+            </div>
+            <div id="chat-controls">
+                <button id="settings-btn" title="Settings">⚙️</button>
+                <button id="reset-btn" title="Reset Chat">🗑️</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Panel (Hidden by default) -->
+    <div id="settings-panel" class="hidden">
+        <h3>System Prompt (Persona)</h3>
+        <p class="hint">Define the personality of the model here.</p>
+        <textarea id="system-prompt-input" rows="5"></textarea>
+        <div class="settings-actions">
+            <button id="save-settings-btn">Save</button>
+            <button id="close-settings-btn">Close</button>
         </div>
     </div>
 

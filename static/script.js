@@ -11,6 +11,9 @@ window.PIXI = PIXI;
     // Note: PIXI.live2d might be undefined if the plugin failed to register
     const Live2DModel = PIXI.live2d ? PIXI.live2d.Live2DModel : null;
 
+    // Track the current model globally within this scope
+    let currentModel = null;
+
     if (!Live2DModel) {
         console.error("Live2DModel is not defined in PIXI.live2d");
         return;
@@ -33,6 +36,7 @@ window.PIXI = PIXI;
             
             // Load the model
             const model = await Live2DModel.from(modelUrl);
+            currentModel = model;
 
             // Clear previous models if any
             app.stage.removeChildren();
@@ -50,35 +54,38 @@ window.PIXI = PIXI;
             // Enable interaction on the model to ensure it catches events if needed
             model.interactive = true;
 
-            // 5. Generic Hit Area Detection
-            // Listen for pointertap (click/touch) events on the model
-            // Changed to pointerdown for immediate feedback
-            model.on('pointerdown', (event) => {
-                // Get the global position of the interaction (screen coordinates)
-                const point = event.data.global;
-                
-                // Convert Global coordinates to Model Local coordinates
-                // This accounts for the model's position, scale, and rotation on the stage
-                const localPoint = model.toLocal(point);
+            // 5. Hit Area Detection (Double Click to Trigger)
+            // We use the library's built-in 'hit' event which is reliable.
+            // We implement a custom double-click detection logic.
+            
+            let lastHitTime = 0;
+            const DOUBLE_CLICK_DELAY = 500; // ms
 
-                console.log(`[Debug] Click at Global(${point.x.toFixed(0)}, ${point.y.toFixed(0)}) -> Local(${localPoint.x.toFixed(0)}, ${localPoint.y.toFixed(0)})`);
-                
-                // Perform hit testing using the library's built-in method
-                // hitTest(x, y) expects local coordinates and returns an array of hit area IDs
-                const hitAreaIds = model.hitTest(localPoint.x, localPoint.y);
-                
-                console.log("[Debug] HitTest Result:", hitAreaIds);
-
-                // Output the results
-                if (hitAreaIds && hitAreaIds.length > 0) {
-                    console.log('%c Hit Area:', 'color: #00ff00; font-weight: bold;', hitAreaIds);
-                }
-            });
-
-            // Optional: Listen to the built-in 'hit' event for comparison
-            // This event is triggered by the library's auto-interaction system
             model.on('hit', (hitAreas) => {
-                 console.log('%c Built-in Hit Event:', 'color: cyan;', hitAreas);
+                const currentTime = Date.now();
+                const timeDiff = currentTime - lastHitTime;
+
+                if (hitAreas && hitAreas.length > 0) {
+                    console.log('%c Built-in Hit Event:', 'color: cyan;', hitAreas);
+                    
+                    if (timeDiff < DOUBLE_CLICK_DELAY) {
+                        // Double Click Detected!
+                        console.log('%c Double Click Confirmed!', 'color: #00ff00; font-weight: bold;', hitAreas);
+                        
+                        // Generate third-person action description
+                        const parts = hitAreas.join(' and ');
+                        const actionDescription = `*touches your ${parts}*`;
+                        
+                        // Trigger chat with this action
+                        sendMessage(actionDescription);
+                        
+                        // Reset timer to prevent triple-click triggering
+                        lastHitTime = 0;
+                    } else {
+                        // First Click - record time
+                        lastHitTime = currentTime;
+                    }
+                }
             });
 
             // Handle looking at mouse
@@ -351,5 +358,292 @@ window.PIXI = PIXI;
 
     // Initial fetch
     fetchModelList();
+
+    // --- Chat & Settings Logic ---
+    const chatInput = document.getElementById('chat-input');
+    const sendBtn = document.getElementById('send-btn');
+    const chatMessages = document.getElementById('chat-messages');
+    const settingsBtn = document.getElementById('settings-btn');
+    const resetBtn = document.getElementById('reset-btn');
+    
+    const settingsPanel = document.getElementById('settings-panel');
+    const systemPromptInput = document.getElementById('system-prompt-input');
+    const saveSettingsBtn = document.getElementById('save-settings-btn');
+    const closeSettingsBtn = document.getElementById('close-settings-btn');
+
+    // Speech Bubble Logic
+    const bubble = document.getElementById('speech-bubble');
+    const bubbleText = document.getElementById('bubble-text');
+    let bubbleTimeout;
+
+    function showBubble(text) {
+        // Simple typewriter effect or direct text? User asked for typewriter OR direct.
+        // Let's go with direct for responsiveness first, maybe add typewriter later if requested.
+        bubbleText.textContent = text;
+        bubble.classList.remove('hidden');
+        bubble.classList.add('visible');
+        
+        if (bubbleTimeout) clearTimeout(bubbleTimeout);
+        bubbleTimeout = setTimeout(() => {
+            bubble.classList.remove('visible');
+            bubble.classList.add('hidden');
+        }, 5000); // 5 seconds for reading
+    }
+
+    function appendMessage(role, text) {
+        const msgDiv = document.createElement('div');
+        msgDiv.className = `message ${role}`; // role: 'user' or 'ai'
+        msgDiv.textContent = text;
+        chatMessages.appendChild(msgDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    async function sendMessage(manualText = null) {
+        const text = manualText || chatInput.value.trim();
+        if (!text) return;
+
+        // UI Updates
+        appendMessage('user', text);
+        
+        // Only handle input UI if it was a manual user entry (not programmatic)
+        if (!manualText) {
+            chatInput.value = '';
+            chatInput.disabled = true;
+            sendBtn.disabled = true;
+            chatInput.placeholder = "Thinking...";
+        } else {
+            // For touch events (manualText), show immediate feedback in bubble
+            showBubble("...");
+        }
+
+        try {
+            const response = await fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: text })
+            });
+
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.detail || "Chat failed");
+            }
+
+            const data = await response.json();
+            appendMessage('ai', data.reply);
+            showBubble(data.reply);
+
+        } catch (error) {
+            console.error("Chat error:", error);
+            appendMessage('ai', `[Error: ${error.message}]`);
+        } finally {
+            if (!manualText) {
+                chatInput.disabled = false;
+                sendBtn.disabled = false;
+                chatInput.placeholder = "Say something...";
+                chatInput.focus();
+            }
+        }
+    }
+
+    // Chat Event Listeners
+    sendBtn.addEventListener('click', sendMessage);
+    chatInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') sendMessage();
+    });
+
+    resetBtn.addEventListener('click', async () => {
+        if (!confirm("Clear chat history?")) return;
+        try {
+            await fetch('/api/reset', { method: 'POST' });
+            chatMessages.innerHTML = '';
+            appendMessage('ai', "Chat history cleared.");
+        } catch (e) {
+            alert("Failed to reset: " + e.message);
+        }
+    });
+
+    // Settings Logic
+    async function loadSettings() {
+        try {
+            const res = await fetch('/api/settings');
+            const data = await res.json();
+            systemPromptInput.value = data.system_prompt;
+        } catch (e) {
+            console.error("Failed to load settings", e);
+        }
+    }
+
+    settingsBtn.addEventListener('click', () => {
+        loadSettings();
+        settingsPanel.classList.remove('hidden');
+    });
+
+    closeSettingsBtn.addEventListener('click', () => {
+        settingsPanel.classList.add('hidden');
+    });
+
+    saveSettingsBtn.addEventListener('click', async () => {
+        const newPrompt = systemPromptInput.value.trim();
+        if (!newPrompt) return;
+
+        try {
+            saveSettingsBtn.textContent = "Saving...";
+            saveSettingsBtn.disabled = true;
+            
+            await fetch('/api/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ system_prompt: newPrompt })
+            });
+            
+            alert("Settings saved!");
+            settingsPanel.classList.add('hidden');
+        } catch (e) {
+            alert("Failed to save: " + e.message);
+        } finally {
+            saveSettingsBtn.textContent = "Save";
+            saveSettingsBtn.disabled = false;
+        }
+    });
+
+    // --- Window Management (Dragging, Minimize, Opacity) ---
+    function makeDraggable(windowId) {
+        const win = document.getElementById(windowId);
+        const header = win.querySelector('.window-header');
+        const minimizeBtn = win.querySelector('.minimize-btn');
+        const opacitySlider = win.querySelector('.opacity-slider');
+        
+        let isDragging = false;
+        let startX, startY, initialLeft, initialTop;
+
+        // 1. Dragging Logic
+        header.addEventListener('mousedown', (e) => {
+            // Don't drag if clicking controls
+            if (e.target === minimizeBtn || e.target === opacitySlider) return;
+
+            isDragging = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            
+            // Get computed style for accurate starting position
+            const style = window.getComputedStyle(win);
+            initialLeft = parseInt(style.left || 0);
+            initialTop = parseInt(style.top || 0);
+            
+            // Bring to front
+            win.style.zIndex = 1001;
+            document.body.style.userSelect = 'none'; // Prevent selection
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+
+            let newLeft = initialLeft + dx;
+            let newTop = initialTop + dy;
+
+            // Get current dimensions
+            const rect = win.getBoundingClientRect();
+            const width = rect.width;
+            const height = rect.height;
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+
+            // --- Snapping to Edges (Alignment) ---
+            const SNAP_DIST = 20;
+            
+            // Snap Left
+            if (Math.abs(newLeft) < SNAP_DIST) newLeft = 20; // Indent 20px
+            // Snap Right
+            if (Math.abs(newLeft + width - viewportWidth) < SNAP_DIST) newLeft = viewportWidth - width - 20; // Indent 20px
+            // Snap Top
+            if (Math.abs(newTop) < SNAP_DIST) newTop = 20; // Indent 20px
+            // Snap Bottom
+            if (Math.abs(newTop + height - viewportHeight) < SNAP_DIST) newTop = viewportHeight - height - 20; // Indent 20px
+
+            // --- Collision Avoidance (Live2D Model) ---
+            if (currentModel) {
+                const modelBounds = currentModel.getBounds();
+                const SAFETY_MARGIN = 20;
+                
+                // Define Safe Zone (Model + Margin)
+                const safeZone = {
+                    left: modelBounds.x - SAFETY_MARGIN,
+                    right: modelBounds.x + modelBounds.width + SAFETY_MARGIN,
+                    top: modelBounds.y - SAFETY_MARGIN,
+                    bottom: modelBounds.y + modelBounds.height + SAFETY_MARGIN
+                };
+
+                // Proposed Window Rect
+                const proposedRect = {
+                    left: newLeft,
+                    right: newLeft + width,
+                    top: newTop,
+                    bottom: newTop + height
+                };
+
+                // Check Intersection
+                const isIntersecting = !(
+                    proposedRect.right < safeZone.left || 
+                    proposedRect.left > safeZone.right || 
+                    proposedRect.bottom < safeZone.top || 
+                    proposedRect.top > safeZone.bottom
+                );
+
+                if (isIntersecting) {
+                    // Collision detected! Prevent entering the safe zone.
+                    // We allow movement if it's moving *away* from the collision?
+                    // But determining "away" is complex with just rects.
+                    // The "solid wall" approach (blocking update) works best for dragging.
+                    return; 
+                }
+            }
+
+            win.style.left = `${newLeft}px`;
+            win.style.top = `${newTop}px`;
+            
+            // Reset bottom/right to auto if set, to switch to top/left positioning
+            win.style.bottom = 'auto';
+            win.style.right = 'auto';
+        });
+
+        window.addEventListener('mouseup', () => {
+            if (isDragging) {
+                isDragging = false;
+                document.body.style.userSelect = '';
+                win.style.zIndex = 1000;
+            }
+        });
+
+        // 2. Minimize Logic
+        let isMinimized = false;
+        // Store original dimensions
+        let originalHeight = win.style.height;
+        let originalWidth = win.style.width;
+        
+        minimizeBtn.addEventListener('click', () => {
+            isMinimized = !isMinimized;
+            if (isMinimized) {
+                win.classList.add('minimized');
+                minimizeBtn.textContent = '+';
+            } else {
+                win.classList.remove('minimized');
+                minimizeBtn.textContent = '-';
+            }
+        });
+
+        // 3. Opacity Logic
+        opacitySlider.addEventListener('input', (e) => {
+            const opacity = e.target.value;
+            // Apply opacity to background only (rgba)
+            win.style.background = `rgba(0, 0, 0, ${opacity})`;
+        });
+    }
+
+    // Initialize Windows
+    makeDraggable('ui-container');
+    makeDraggable('chat-container');
 
 })();

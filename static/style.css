@@ -182,3 +182,359 @@ button:disabled {
 ::-webkit-scrollbar-thumb:hover {
     background: rgba(255,255,255,0.3);
 }
+
+/* --- Chat Interface --- */
+#chat-container {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    width: 320px;
+    height: 450px;
+    background: rgba(0, 0, 0, 0.85);
+    border-radius: 12px;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    z-index: 1000;
+    color: white;
+    backdrop-filter: blur(5px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+#chat-header {
+    font-weight: bold;
+    margin-bottom: 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.2);
+    padding-bottom: 5px;
+}
+
+#chat-messages {
+    flex-grow: 1;
+    overflow-y: auto;
+    margin-bottom: 10px;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+    padding: 10px;
+    background: rgba(0,0,0,0.3);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.message {
+    padding: 8px 12px;
+    border-radius: 12px;
+    font-size: 0.9em;
+    line-height: 1.4;
+    max-width: 85%;
+    word-wrap: break-word;
+}
+
+.message.user {
+    background: rgba(76, 175, 80, 0.4);
+    align-self: flex-end;
+    border-bottom-right-radius: 2px;
+}
+
+.message.ai {
+    background: rgba(33, 150, 243, 0.4);
+    align-self: flex-start;
+    border-bottom-left-radius: 2px;
+}
+
+#chat-input-area {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+#chat-input {
+    flex-grow: 1;
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid rgba(255,255,255,0.3);
+    background: rgba(255,255,255,0.1);
+    color: white;
+    outline: none;
+}
+
+#chat-input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+#send-btn {
+    background: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 0 12px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+#send-btn:hover {
+    background: #45a049;
+}
+
+#send-btn:disabled {
+    background: #555;
+    cursor: not-allowed;
+}
+
+#chat-controls {
+    display: flex;
+    justify-content: space-between;
+    border-top: 1px solid rgba(255,255,255,0.1);
+    padding-top: 8px;
+}
+
+#chat-controls button {
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.2);
+    color: #ccc;
+    border-radius: 4px;
+    padding: 4px 8px;
+    cursor: pointer;
+    font-size: 0.9em;
+}
+
+#chat-controls button:hover {
+    background: rgba(255,255,255,0.1);
+    color: white;
+}
+
+/* --- Settings Panel --- */
+#settings-panel {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 400px;
+    background: rgba(0, 0, 0, 0.95);
+    padding: 25px;
+    border-radius: 12px;
+    z-index: 2000;
+    color: white;
+    border: 1px solid rgba(255,255,255,0.2);
+    box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+#settings-panel.hidden {
+    display: none;
+}
+
+#settings-panel h3 {
+    margin-top: 0;
+    color: #4CAF50;
+}
+
+.hint {
+    font-size: 0.85em;
+    color: #aaa;
+    margin-bottom: 10px;
+}
+
+#system-prompt-input {
+    width: 100%;
+    background: rgba(255,255,255,0.1);
+    color: white;
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 6px;
+    padding: 10px;
+    margin-bottom: 20px;
+    resize: vertical;
+    font-family: inherit;
+    box-sizing: border-box;
+}
+
+.settings-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.settings-actions button {
+    padding: 8px 16px;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+#save-settings-btn {
+    background: #4CAF50;
+    color: white;
+}
+
+#save-settings-btn:hover {
+    background: #45a049;
+}
+
+#close-settings-btn {
+    background: #757575;
+    color: white;
+}
+
+#close-settings-btn:hover {
+    background: #616161;
+}
+
+/* --- Draggable Windows --- */
+.draggable-window {
+    position: absolute;
+    background: rgba(0, 0, 0, 0.85);
+    border-radius: 12px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    z-index: 1000;
+    color: white;
+    backdrop-filter: blur(5px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    overflow: hidden; /* For rounded corners */
+    border: 1px solid rgba(255,255,255,0.1);
+    transition: width 0.3s, height 0.3s, background 0.3s;
+}
+
+.window-header {
+    padding: 10px 15px;
+    background: rgba(255, 255, 255, 0.1);
+    cursor: move; /* Drag handle cursor */
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    user-select: none;
+}
+
+.window-title {
+    font-weight: bold;
+    font-size: 0.95em;
+}
+
+.window-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.opacity-slider {
+    width: 60px;
+    height: 4px;
+    appearance: none;
+    background: rgba(255,255,255,0.3);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+}
+
+.opacity-slider::-webkit-slider-thumb {
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    background: white;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.minimize-btn {
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.3);
+    color: white;
+    border-radius: 4px;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0;
+}
+
+.minimize-btn:hover {
+    background: rgba(255,255,255,0.2);
+}
+
+.window-body {
+    padding: 15px;
+    flex-grow: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Minimized State */
+.draggable-window.minimized {
+    height: 45px !important; /* Header height */
+    width: 200px !important; /* Shrink width */
+    overflow: hidden;
+}
+
+.draggable-window.minimized .window-body {
+    display: none;
+}
+
+/* Specific Window overrides */
+#ui-container {
+    top: 20px;
+    left: 20px;
+    width: 300px;
+    max-height: 80vh;
+}
+
+#chat-container {
+    bottom: 20px;
+    right: 20px;
+    width: 320px;
+    height: 450px;
+}
+
+/* --- Speech Bubble --- */
+.speech-bubble {
+    position: absolute;
+    bottom: 20%; /* Position near bottom of screen/model */
+    left: 50%;
+    transform: translateX(-50%);
+    background: white;
+    border-radius: 20px;
+    padding: 15px 25px;
+    max-width: 300px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    z-index: 900; /* Below UI windows but above canvas if needed */
+    opacity: 0;
+    transition: opacity 0.3s ease-in-out;
+    pointer-events: none; /* Let clicks pass through */
+    text-align: center;
+}
+
+.speech-bubble.visible {
+    opacity: 1;
+}
+
+.speech-bubble.hidden {
+    opacity: 0;
+}
+
+#bubble-text {
+    color: #333;
+    font-family: 'Comic Sans MS', 'Chalkboard SE', sans-serif;
+    font-size: 16px;
+    line-height: 1.4;
+}
+
+.bubble-arrow {
+    position: absolute;
+    bottom: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 10px solid transparent;
+    border-right: 10px solid transparent;
+    border-top: 10px solid white;
+}
