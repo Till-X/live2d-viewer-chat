@@ -18,6 +18,30 @@
     <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display/dist/index.min.js"></script>
 </head>
 <body>
+    <div id="ui-container">
+        <div id="model-section">
+            <h3>Models</h3>
+            <div id="model-list-container">
+                <ul id="model-list">
+                    <!-- List items will be injected here -->
+                    <li class="loading-item">Loading models...</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div id="upload-section">
+            <h3>Upload New</h3>
+            <div class="input-group">
+                <input type="file" id="model-upload" accept=".zip" />
+            </div>
+            <div class="input-group">
+                <input type="text" id="model-name-input" placeholder="Name (Optional, a-z0-9_)" maxlength="50" />
+                <span id="name-validation-msg"></span>
+            </div>
+            <button id="upload-btn">Upload .zip</button>
+        </div>
+    </div>
+
     <div id="canvas-container">
         <canvas id="canvas"></canvas>
     </div>

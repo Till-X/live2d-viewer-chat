@@ -149,13 +149,207 @@ window.PIXI = PIXI;
         }
     });
 
-    // 5. Load Sample Model
-    // Using Haru model from a public CDN for demonstration
-    const sampleModelUrl = "/models/shizuku/shizuku.model.json";
-    
-    // You can also use a local model if you put it in the 'models' folder
-    // const localModelUrl = "/models/my_model/my_model.model3.json";
+    // 6. UI Logic & Model Management
+    const modelList = document.getElementById('model-list');
+    const uploadBtn = document.getElementById('upload-btn');
+    const fileInput = document.getElementById('model-upload');
+    const nameInput = document.getElementById('model-name-input');
+    const nameMsg = document.getElementById('name-validation-msg');
 
-    await loadLive2DModel(sampleModelUrl);
+    let currentModelUrl = null;
+
+    // Helper: Validate model name
+    function validateModelName(name) {
+        if (!name) return true; // Empty is allowed (auto-generate)
+        const regex = /^[a-zA-Z0-9_]{2,50}$/;
+        return regex.test(name);
+    }
+
+    // Input Validation Event
+    nameInput.addEventListener('input', () => {
+        const name = nameInput.value.trim();
+        if (name === '') {
+            nameMsg.textContent = '';
+            nameMsg.className = '';
+            uploadBtn.disabled = false;
+            return;
+        }
+
+        if (validateModelName(name)) {
+            nameMsg.textContent = '✓ Valid name';
+            nameMsg.className = 'valid-msg';
+            uploadBtn.disabled = false;
+        } else {
+            nameMsg.textContent = '✗ Invalid (2-50 chars, letters/numbers/_)';
+            nameMsg.className = 'invalid-msg';
+            uploadBtn.disabled = true;
+        }
+    });
+
+    // Fetch and populate model list
+    async function fetchModelList() {
+        try {
+            const response = await fetch('/api/models');
+            const data = await response.json();
+            const models = data.models;
+
+            // Clear list
+            modelList.innerHTML = '';
+
+            if (models.length === 0) {
+                const li = document.createElement('li');
+                li.className = 'model-item';
+                li.innerHTML = '<span class="model-name">No models found</span>';
+                modelList.appendChild(li);
+                return;
+            }
+
+            models.forEach(model => {
+                const li = document.createElement('li');
+                li.className = 'model-item';
+                if (model.url === currentModelUrl) {
+                    li.classList.add('active');
+                }
+                
+                // Name span
+                const nameSpan = document.createElement('span');
+                nameSpan.className = 'model-name';
+                nameSpan.textContent = model.name;
+                
+                // Delete button
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'delete-btn';
+                deleteBtn.innerHTML = '×';
+                deleteBtn.title = 'Delete Model';
+                
+                // Click handler for selecting model
+                li.addEventListener('click', (e) => {
+                    // Ignore if clicked on delete button
+                    if (e.target === deleteBtn) return;
+                    
+                    if (currentModelUrl !== model.url) {
+                        loadLive2DModel(model.url);
+                        currentModelUrl = model.url;
+                        // Update active state
+                        document.querySelectorAll('.model-item').forEach(item => item.classList.remove('active'));
+                        li.classList.add('active');
+                    }
+                });
+
+                // Click handler for delete
+                deleteBtn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    if (confirm(`Are you sure you want to delete "${model.name}"? This cannot be undone.`)) {
+                        await deleteModel(model.name);
+                    }
+                });
+
+                li.appendChild(nameSpan);
+                li.appendChild(deleteBtn);
+                modelList.appendChild(li);
+            });
+
+            // Initial Load Logic
+            if (!currentModelUrl && models.length > 0 && app.stage.children.length === 0) {
+                 // Load first model by default
+                 const firstModel = models[0];
+                 loadLive2DModel(firstModel.url);
+                 currentModelUrl = firstModel.url;
+                 // Mark first item active (simplification)
+                 // Re-rendering or manually selecting would be better, but this works for init
+                 const firstLi = modelList.firstChild;
+                 if (firstLi) firstLi.classList.add('active');
+            }
+        } catch (error) {
+            console.error("Failed to fetch model list:", error);
+            modelList.innerHTML = '<li class="model-item" style="color:red">Failed to load list</li>';
+        }
+    }
+
+    // Delete Model Function
+    async function deleteModel(modelName) {
+        try {
+            const response = await fetch(`/api/models/${modelName}`, {
+                method: 'DELETE'
+            });
+
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.detail || "Delete failed");
+            }
+
+            console.log(`Model ${modelName} deleted.`);
+            
+            // If we deleted the current model, clear the stage
+            // We can't easily check if the deleted model URL matches currentModelUrl without full path
+            // But usually modelName maps to folder name. 
+            // Simplest is to just reload list. If the current model file is gone, Pixi might crash on next interaction?
+            // Actually, loaded model stays in memory. But let's clear it if we want to be safe, 
+            // or just leave it until user switches.
+            
+            await fetchModelList();
+
+        } catch (error) {
+            console.error("Delete error:", error);
+            alert("Failed to delete model: " + error.message);
+        }
+    }
+
+    // Handle file upload
+    uploadBtn.addEventListener('click', async () => {
+        const file = fileInput.files[0];
+        if (!file) {
+            alert("Please select a .zip file first.");
+            return;
+        }
+
+        const customName = nameInput.value.trim();
+        if (customName && !validateModelName(customName)) {
+            alert("Invalid name format.");
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', file);
+        if (customName) {
+            formData.append('custom_name', customName);
+        }
+
+        try {
+            uploadBtn.disabled = true;
+            uploadBtn.textContent = "Uploading...";
+            
+            const response = await fetch('/api/upload', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.detail || "Upload failed");
+            }
+
+            const result = await response.json();
+            alert("Upload successful!");
+            
+            // Reset inputs
+            fileInput.value = '';
+            nameInput.value = '';
+            nameMsg.textContent = '';
+            
+            // Refresh list
+            await fetchModelList();
+            
+        } catch (error) {
+            console.error("Upload error:", error);
+            alert("Upload failed: " + error.message);
+        } finally {
+            uploadBtn.disabled = false;
+            uploadBtn.textContent = "Upload .zip";
+        }
+    });
+
+    // Initial fetch
+    fetchModelList();
 
 })();
