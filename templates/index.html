@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live2D Viewer</title>
+    <link rel="stylesheet" href="/static/style.css">
+    
+    <!-- Cubism 2 Core -->
+    <script src="/static/lib/live2d.min.js"></script>
+    <!-- Cubism 4 Core -->
+    <script src="/static/lib/live2dcubismcore.min.js"></script>
+    
+    <!-- PixiJS v6.5.8 (Stable with Live2D) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.5.8/browser/pixi.min.js"></script>
+    
+    <!-- pixi-live2d-display (Latest) -->
+    <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display/dist/index.min.js"></script>
+</head>
+<body>
+    <div id="canvas-container">
+        <canvas id="canvas"></canvas>
+    </div>
+    
+    <!-- Main Script -->
+    <script type="module" src="/static/script.js"></script>
+</body>
+</html>
