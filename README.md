@@ -1,6 +1,6 @@
 # Live2D Viewer & Chat Assistant
 
-![Live2D Viewer](https://via.placeholder.com/150x150.png?text=Live2D+Viewer)
+![Live2D Viewer](./assets/images/Live2D+Viewer.png)
 
 > 一个集成了 Live2D 模型展示与 AI 智能对话功能的 Web 应用。
 
