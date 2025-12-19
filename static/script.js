@@ -50,6 +50,37 @@ window.PIXI = PIXI;
             // Enable interaction on the model to ensure it catches events if needed
             model.interactive = true;
 
+            // 5. Generic Hit Area Detection
+            // Listen for pointertap (click/touch) events on the model
+            // Changed to pointerdown for immediate feedback
+            model.on('pointerdown', (event) => {
+                // Get the global position of the interaction (screen coordinates)
+                const point = event.data.global;
+                
+                // Convert Global coordinates to Model Local coordinates
+                // This accounts for the model's position, scale, and rotation on the stage
+                const localPoint = model.toLocal(point);
+
+                console.log(`[Debug] Click at Global(${point.x.toFixed(0)}, ${point.y.toFixed(0)}) -> Local(${localPoint.x.toFixed(0)}, ${localPoint.y.toFixed(0)})`);
+                
+                // Perform hit testing using the library's built-in method
+                // hitTest(x, y) expects local coordinates and returns an array of hit area IDs
+                const hitAreaIds = model.hitTest(localPoint.x, localPoint.y);
+                
+                console.log("[Debug] HitTest Result:", hitAreaIds);
+
+                // Output the results
+                if (hitAreaIds && hitAreaIds.length > 0) {
+                    console.log('%c Hit Area:', 'color: #00ff00; font-weight: bold;', hitAreaIds);
+                }
+            });
+
+            // Optional: Listen to the built-in 'hit' event for comparison
+            // This event is triggered by the library's auto-interaction system
+            model.on('hit', (hitAreas) => {
+                 console.log('%c Built-in Hit Event:', 'color: cyan;', hitAreas);
+            });
+
             // Handle looking at mouse
             // Live2D models usually respond to 'focus' with x, y in range [-1, 1] usually,
             // or we can just use the internal tracker if configured.
