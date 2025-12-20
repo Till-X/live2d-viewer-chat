@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Request, File, UploadFile, HTTPException, Form
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import os
@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import List, Optional
 import openai
 from openai import AsyncOpenAI
+import json
+from services.tts_service import tts_service
 
 app = FastAPI()
 
@@ -148,7 +150,7 @@ client = AsyncOpenAI(
 
 class GlobalConfig:
     def __init__(self):
-        self.system_prompt = "你是一个可爱的二次元少女，说话语气活泼，喜欢用emoji。"
+        self.system_prompt = "你是一个可爱的二次元少女，说话语气活泼，喜好嘻嘻嘻。"
         self.history = [] 
 
 config = GlobalConfig()
@@ -156,8 +158,23 @@ config = GlobalConfig()
 class ChatRequest(BaseModel):
     text: str
 
+class TTSRequest(BaseModel):
+    text: str
+
 class SettingsRequest(BaseModel):
     system_prompt: str
+
+@app.post("/api/tts")
+async def tts_endpoint(request: TTSRequest):
+    try:
+        audio_data = await tts_service.synthesize(request.text)
+        # Return audio as binary response
+        return StreamingResponse(
+            iter([audio_data]), 
+            media_type="audio/mp3"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/chat")
 async def chat_endpoint(request: ChatRequest):
@@ -168,29 +185,39 @@ async def chat_endpoint(request: ChatRequest):
         {"role": "system", "content": config.system_prompt}
     ] + config.history
     
-    try:
-        if api_key == "YOUR_API_KEY":
-            import asyncio
-            await asyncio.sleep(1)
-            ai_response = f"This is a mock response because no ARK_API_KEY is set. You said: {user_input} 😸"
-        else:
-            completion = await client.chat.completions.create(
-                model="deepseek-v3-1-terminus",
-                messages=messages
-            )
-            ai_response = completion.choices[0].message.content
+    async def generate():
+        full_response = ""
+        try:
+            if api_key == "YOUR_API_KEY":
+                import asyncio
+                # Mock streaming
+                mock_text = f"This is a mock response because no ARK_API_KEY is set. You said: {user_input} 😸"
+                for char in mock_text:
+                    await asyncio.sleep(0.05)
+                    full_response += char
+                    yield f"data: {json.dumps({'content': char})}\n\n"
+            else:
+                stream = await client.chat.completions.create(
+                    model="deepseek-v3-1-terminus",
+                    messages=messages,
+                    stream=True
+                )
+                async for chunk in stream:
+                    if chunk.choices and chunk.choices[0].delta.content:
+                        content = chunk.choices[0].delta.content
+                        full_response += content
+                        yield f"data: {json.dumps({'content': content})}\n\n"
             
-        config.history.append({"role": "assistant", "content": ai_response})
-        
-        if len(config.history) > 20:
-            config.history = config.history[-20:]
-            
-        return {"reply": ai_response}
-        
-    except Exception as e:
-        config.history.pop() 
-        print(f"Error calling OpenAI/Ark: {e}")
-        raise HTTPException(status_code=500, detail=f"LLM Error: {str(e)}")
+            # Save history after completion
+            config.history.append({"role": "assistant", "content": full_response})
+            if len(config.history) > 20:
+                config.history = config.history[-20:]
+                
+        except Exception as e:
+            print(f"Stream Error: {e}")
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
 
 @app.get("/api/settings")
 async def get_settings():

@@ -406,12 +406,85 @@ window.PIXI = PIXI;
         }, 5000); // 5 seconds for reading
     }
 
+    // --- Audio Queue Management ---
+    class AudioQueue {
+        constructor() {
+            this.queue = [];
+            this.isPlaying = false;
+            this.currentAudio = null;
+            
+            // Order management
+            this.pendingAudios = new Map(); // Stores { index: blob }
+            this.nextIndex = 0;
+        }
+
+        add(audioBlob, index) {
+            // Store in buffer
+            this.pendingAudios.set(index, audioBlob);
+            // Try to move from buffer to play queue
+            this.processBuffer();
+        }
+
+        processBuffer() {
+            while (this.pendingAudios.has(this.nextIndex)) {
+                const blob = this.pendingAudios.get(this.nextIndex);
+                this.pendingAudios.delete(this.nextIndex);
+                
+                const url = URL.createObjectURL(blob);
+                this.queue.push(url);
+                this.nextIndex++;
+            }
+            // Trigger playback if not playing
+            this.processQueue();
+        }
+
+        processQueue() {
+            if (this.isPlaying || this.queue.length === 0) return;
+
+            this.isPlaying = true;
+            const url = this.queue.shift();
+            this.currentAudio = new Audio(url);
+
+            this.currentAudio.onended = () => {
+                this.isPlaying = false;
+                URL.revokeObjectURL(url);
+                this.processQueue();
+            };
+
+            this.currentAudio.onerror = (e) => {
+                console.error("Audio playback error:", e);
+                this.isPlaying = false;
+                this.processQueue();
+            };
+
+            this.currentAudio.play().catch(e => {
+                console.warn("Autoplay blocked or error:", e);
+                this.isPlaying = false;
+                this.processQueue();
+            });
+        }
+
+        stop() {
+            this.queue = [];
+            if (this.currentAudio) {
+                this.currentAudio.pause();
+                this.currentAudio = null;
+            }
+            this.isPlaying = false;
+            this.pendingAudios.clear();
+            this.nextIndex = 0;
+        }
+    }
+
+    const audioQueue = new AudioQueue();
+
     function appendMessage(role, text) {
         const msgDiv = document.createElement('div');
         msgDiv.className = `message ${role}`; // role: 'user' or 'ai'
         msgDiv.textContent = text;
         chatMessages.appendChild(msgDiv);
         chatMessages.scrollTop = chatMessages.scrollHeight;
+        return msgDiv;
     }
 
     async function sendMessage(manualText = null) {
@@ -421,6 +494,9 @@ window.PIXI = PIXI;
         // UI Updates
         appendMessage('user', text);
         
+        // Stop previous audio if any
+        audioQueue.stop();
+
         // Only handle input UI if it was a manual user entry (not programmatic)
         if (!manualText) {
             chatInput.value = '';
@@ -428,9 +504,14 @@ window.PIXI = PIXI;
             sendBtn.disabled = true;
             chatInput.placeholder = "Thinking...";
         } else {
-            // For touch events (manualText), show immediate feedback in bubble
             showBubble("...");
         }
+
+        let aiMsgDiv = appendMessage('ai', '');
+        let fullText = "";
+        let ttsBuffer = "";
+        let sentenceIndex = 0; // Track sentence order
+        const punctuations = /[，。！？；,.!?;:\n]/;
 
         try {
             const response = await fetch('/api/chat', {
@@ -439,18 +520,82 @@ window.PIXI = PIXI;
                 body: JSON.stringify({ text: text })
             });
 
-            if (!response.ok) {
-                const err = await response.json();
-                throw new Error(err.detail || "Chat failed");
-            }
+            if (!response.ok) throw new Error("Chat failed");
 
-            const data = await response.json();
-            appendMessage('ai', data.reply);
-            showBubble(data.reply);
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value, { stream: true });
+                const lines = chunk.split('\n');
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        try {
+                            const jsonStr = line.slice(6);
+                            if (jsonStr.trim() === "[DONE]") continue; // Standard SSE end
+                            
+                            const data = JSON.parse(jsonStr);
+                            
+                            if (data.error) throw new Error(data.error);
+                            
+                            if (data.content) {
+                                const content = data.content;
+                                fullText += content;
+                                aiMsgDiv.textContent = fullText;
+                                showBubble(fullText);
+                                chatMessages.scrollTop = chatMessages.scrollHeight;
+
+                                // TTS Buffering Logic
+                                ttsBuffer += content;
+                                
+                                // Check for punctuation
+                                let match;
+                                while ((match = punctuations.exec(ttsBuffer)) !== null) {
+                                    const index = match.index;
+                                    const sentence = ttsBuffer.substring(0, index + 1).trim();
+                                    ttsBuffer = ttsBuffer.substring(index + 1);
+                                    
+                                    if (sentence) {
+                                        const currentIndex = sentenceIndex++;
+                                        // Send to TTS (Async, don't await to keep text streaming)
+                                        fetch('/api/tts', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ text: sentence })
+                                        })
+                                        .then(res => res.blob())
+                                        .then(blob => audioQueue.add(blob, currentIndex))
+                                        .catch(e => console.error("TTS Error:", e));
+                                    }
+                                }
+                            }
+                        } catch (e) {
+                            console.error("Stream parse error:", e);
+                        }
+                    }
+                }
+            }
+            
+            // Process remaining buffer
+            if (ttsBuffer.trim()) {
+                 const currentIndex = sentenceIndex++;
+                 fetch('/api/tts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: ttsBuffer.trim() })
+                })
+                .then(res => res.blob())
+                .then(blob => audioQueue.add(blob, currentIndex))
+                .catch(e => console.error("TTS Error:", e));
+            }
 
         } catch (error) {
             console.error("Chat error:", error);
-            appendMessage('ai', `[Error: ${error.message}]`);
+            aiMsgDiv.textContent += ` [Error: ${error.message}]`;
         } finally {
             if (!manualText) {
                 chatInput.disabled = false;
@@ -462,7 +607,7 @@ window.PIXI = PIXI;
     }
 
     // Chat Event Listeners
-    sendBtn.addEventListener('click', sendMessage);
+    sendBtn.addEventListener('click', () => sendMessage()); // Wrap in arrow function to avoid passing event object
     chatInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') sendMessage();
     });
