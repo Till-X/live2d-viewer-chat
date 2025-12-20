@@ -522,6 +522,79 @@ window.PIXI = PIXI;
         }
     });
 
+    // --- Accordion Logic ---
+    function initAccordion() {
+        const headers = document.querySelectorAll('.accordion-header');
+        
+        headers.forEach(header => {
+            const item = header.parentElement;
+            const id = item.id;
+            const icon = header.querySelector('.acc-icon');
+
+            // 1. Accessibility Setup
+            header.setAttribute('role', 'button');
+            header.setAttribute('tabindex', '0');
+            
+            // 2. State Restoration from LocalStorage
+            // Default: 'acc-model-list' open, 'acc-upload' closed if no history
+            let savedState = localStorage.getItem('accordion-' + id);
+            
+            if (!savedState) {
+                // Default initial state
+                if (id === 'acc-model-list') savedState = 'open';
+                else savedState = 'closed';
+            }
+
+            if (savedState === 'open') {
+                item.classList.add('active');
+                if(icon) icon.textContent = '▼';
+                header.setAttribute('aria-expanded', 'true');
+            } else {
+                item.classList.remove('active');
+                if(icon) icon.textContent = '▶';
+                header.setAttribute('aria-expanded', 'false');
+            }
+
+            // 3. Remove existing listeners (clone)
+            const newHeader = header.cloneNode(true);
+            header.parentNode.replaceChild(newHeader, header);
+            
+            // 4. Toggle Logic
+            const toggle = () => {
+                const isActive = newHeader.parentElement.classList.contains('active');
+                const newItem = newHeader.parentElement;
+                const newIcon = newHeader.querySelector('.acc-icon');
+                
+                if (isActive) {
+                    // Close
+                    newItem.classList.remove('active');
+                    if(newIcon) newIcon.textContent = '▶';
+                    newHeader.setAttribute('aria-expanded', 'false');
+                    localStorage.setItem('accordion-' + id, 'closed');
+                } else {
+                    // Open
+                    newItem.classList.add('active');
+                    if(newIcon) newIcon.textContent = '▼';
+                    newHeader.setAttribute('aria-expanded', 'true');
+                    localStorage.setItem('accordion-' + id, 'open');
+                }
+            };
+
+            newHeader.addEventListener('click', toggle);
+            
+            // Keyboard Support
+            newHeader.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    toggle();
+                }
+            });
+        });
+    }
+    
+    // Call init
+    initAccordion();
+
     // --- Window Management (Dragging with Transform & Throttle) ---
     
     // Throttle Helper
@@ -553,6 +626,7 @@ window.PIXI = PIXI;
 
         // 1. Dragging Logic (Transform based)
         header.addEventListener('mousedown', (e) => {
+            if (window.innerWidth < 768) return; // Disable dragging on mobile
             if (e.target === minimizeBtn || e.target === opacitySlider) return;
 
             isDragging = true;
@@ -642,5 +716,91 @@ window.PIXI = PIXI;
     // Initialize Windows
     makeDraggable('ui-container');
     makeDraggable('chat-container');
+
+    // --- Mobile Bottom Sheet Logic ---
+    let mobileInitialized = false;
+
+    function initMobileSheets() {
+        if (mobileInitialized) return;
+        
+        const mobileModelsBtn = document.getElementById('mobile-models-btn');
+        const mobileChatBtn = document.getElementById('mobile-chat-btn');
+        const mobileOverlay = document.getElementById('mobile-overlay');
+        const uiContainer = document.getElementById('ui-container');
+        const chatContainer = document.getElementById('chat-container');
+        const uiHeader = uiContainer.querySelector('.window-header');
+        const chatHeader = chatContainer.querySelector('.window-header');
+
+        if (!mobileModelsBtn || !mobileChatBtn) return;
+
+        function closeAllSheets() {
+            uiContainer.classList.remove('sheet-active');
+            chatContainer.classList.remove('sheet-active');
+            mobileOverlay.classList.remove('active');
+            mobileModelsBtn.classList.remove('active');
+            mobileChatBtn.classList.remove('active');
+        }
+
+        mobileModelsBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const wasActive = uiContainer.classList.contains('sheet-active');
+            closeAllSheets();
+            if (!wasActive) {
+                uiContainer.classList.add('sheet-active');
+                mobileOverlay.classList.add('active');
+                mobileModelsBtn.classList.add('active');
+            }
+        });
+
+        mobileChatBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const wasActive = chatContainer.classList.contains('sheet-active');
+            closeAllSheets();
+            if (!wasActive) {
+                chatContainer.classList.add('sheet-active');
+                mobileOverlay.classList.add('active');
+                mobileChatBtn.classList.add('active');
+            }
+        });
+
+        mobileOverlay.addEventListener('click', closeAllSheets);
+
+        // Swipe Down Logic
+        let startY = 0;
+        const swipeThreshold = 50;
+
+        function handleTouchStart(e) {
+            startY = e.touches[0].clientY;
+        }
+
+        function handleTouchEnd(e) {
+            const endY = e.changedTouches[0].clientY;
+            if (endY - startY > swipeThreshold) {
+                closeAllSheets();
+            }
+        }
+
+        // Attach swipe listeners to headers
+        uiHeader.addEventListener('touchstart', handleTouchStart, {passive: true});
+        uiHeader.addEventListener('touchend', handleTouchEnd, {passive: true});
+        
+        chatHeader.addEventListener('touchstart', handleTouchStart, {passive: true});
+        chatHeader.addEventListener('touchend', handleTouchEnd, {passive: true});
+
+        mobileInitialized = true;
+        console.log("Mobile interaction initialized");
+    }
+
+    // Initialize if currently mobile
+    if (window.innerWidth < 768) {
+        initMobileSheets();
+    }
+
+    // Check on resize
+    window.addEventListener('resize', () => {
+        if (window.innerWidth < 768) {
+            initMobileSheets();
+        }
+    });
 
 })();

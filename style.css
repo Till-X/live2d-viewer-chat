@@ -45,15 +45,81 @@ h3 {
     padding-bottom: 8px;
 }
 
+/* Accordion Layout */
+.accordion-item {
+    display: flex;
+    flex-direction: column;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    /* Allow natural expansion */
+    min-height: 45px;
+    flex-shrink: 0;
+}
+
+.accordion-item:last-child {
+    border-bottom: none;
+}
+
+.accordion-item.active {
+    /* When active, allow it to take available space if container is fixed, 
+       but primarily rely on content expansion */
+    flex-grow: 1; 
+}
+
+.accordion-header {
+    padding: 12px 15px;
+    background: rgba(255,255,255,0.05);
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: bold;
+    font-size: 0.95em;
+    user-select: none;
+    transition: background 0.2s;
+    min-height: 20px;
+    flex-shrink: 0; /* Ensure header never shrinks */
+}
+
+.accordion-header:hover {
+    background: rgba(255,255,255,0.1);
+}
+
+.accordion-content {
+    display: flex;
+    flex-direction: column;
+    background: rgba(0,0,0,0.2);
+    
+    /* Animation - Collapsed State */
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition: max-height 0.3s ease-out, opacity 0.3s ease-out;
+    pointer-events: none;
+    
+    /* Custom Scrollbar for content */
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.3) transparent;
+}
+
+.accordion-item.active .accordion-content {
+    /* Expanded State */
+    max-height: 60vh; /* Limit expansion to reasonable size within window */
+    opacity: 1;
+    pointer-events: auto;
+    /* Ensure internal scrolling works */
+    overflow-y: auto;
+}
+
 /* Model List Styles */
 #model-list-container {
     flex-grow: 1;
-    overflow-y: auto;
-    margin-bottom: 20px;
-    max-height: 300px;
-    border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 6px;
-    background: rgba(0,0,0,0.3);
+    /* Remove fixed height and internal scroll */
+    max-height: none; 
+    overflow-y: visible;
+    margin-bottom: 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
 }
 
 #model-list {
@@ -63,7 +129,7 @@ h3 {
 }
 
 .model-item {
-    padding: 10px;
+    padding: 12px 15px; /* Larger touch target */
     border-bottom: 1px solid rgba(255,255,255,0.05);
     display: flex;
     justify-content: space-between;
@@ -72,49 +138,26 @@ h3 {
     transition: background 0.2s;
 }
 
-.model-item:hover {
-    background: rgba(255,255,255,0.1);
-}
-
-.model-item.active {
-    background: rgba(76, 175, 80, 0.3);
-    border-left: 3px solid #4CAF50;
-}
-
-.model-name {
-    font-size: 0.9em;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    margin-right: 10px;
-}
-
-.delete-btn {
-    background: #ff4444;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    width: 24px;
-    height: 24px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    cursor: pointer;
-    font-size: 14px;
-    opacity: 0.7;
-    transition: opacity 0.2s;
-}
-
-.delete-btn:hover {
-    opacity: 1;
-    background: #cc0000;
-}
+/* ... existing hover/active styles ... */
 
 /* Upload Section Styles */
 #upload-section {
-    background: rgba(255,255,255,0.05);
     padding: 15px;
-    border-radius: 6px;
+    background: transparent; /* Remove double background */
+}
+
+/* Ensure window body passes size down */
+.window-body {
+    padding: 0; /* Remove padding to let accordion touch edges */
+    flex-grow: 1;
+    overflow-y: auto; /* Allow scrolling if content exceeds window height */
+    overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
+    
+    /* Custom Scrollbar */
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.3) transparent;
 }
 
 .input-group {
@@ -578,119 +621,145 @@ button:disabled {
 }
 
 
-/* Mobile Menu Button */
-#mobile-menu-btn {
-    display: none; /* Hidden on desktop */
-    position: fixed;
-    top: 15px;
-    left: 15px;
-    z-index: 2001; /* Above windows */
-    background: var(--bg-dark);
-    color: white;
-    border: 1px solid rgba(255,255,255,0.2);
-    border-radius: 8px;
-    width: 48px;
-    height: 48px;
-    font-size: 24px;
-    cursor: pointer;
-    backdrop-filter: blur(5px);
-    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+/* --- Mobile Navigation & Overlay --- */
+#mobile-nav, #mobile-overlay {
+    display: none;
 }
 
 /* --- Media Queries --- */
 
 /* 1. Mobile Devices (< 768px) */
 @media screen and (max-width: 767px) {
+    /* Hide the old mobile menu button if it exists */
     #mobile-menu-btn {
+        display: none !important;
+    }
+
+    /* Mobile Overlay */
+    #mobile-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 2000;
+        backdrop-filter: blur(2px);
+        transition: opacity 0.3s;
+    }
+    
+    #mobile-overlay.active {
+        display: block;
+    }
+
+    /* Bottom Navigation Bar */
+    #mobile-nav {
         display: flex;
-        justify-content: center;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        height: 60px;
+        background: rgba(0, 0, 0, 0.9);
+        z-index: 2002;
+        justify-content: space-around;
         align-items: center;
+        border-top: 1px solid rgba(255,255,255,0.1);
+        padding-bottom: env(safe-area-inset-bottom);
+        box-sizing: content-box; /* To handle padding-bottom correctly */
     }
 
-    /* Models Window -> Sidebar Drawer */
-    #ui-container {
-        position: fixed !important;
-        top: 0 !important;
-        left: -100% !important; /* Hidden off-screen */
-        width: 80% !important;
-        max-width: 300px !important;
-        height: 100% !important;
-        max-height: 100% !important;
-        border-radius: 0 !important;
-        transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        z-index: 2002 !important; /* Above everything */
-        border-right: 1px solid rgba(255,255,255,0.1);
-        display: flex !important;
+    .nav-btn {
+        background: none;
+        border: none;
+        color: #aaa;
+        font-size: 14px;
+        display: flex;
         flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        padding: 8px 20px;
+        border-radius: 8px;
+        transition: color 0.2s;
+    }
+    
+    .nav-btn.active {
+        color: #4CAF50;
+    }
+    
+    .nav-btn .icon {
+        font-size: 20px;
+    }
+    
+    .nav-btn:active {
+        background: rgba(255,255,255,0.1);
     }
 
-    #ui-container.mobile-visible {
-        left: 0 !important;
-    }
-
-    #ui-container .window-header {
-        cursor: default; /* No dragging */
-        padding-top: 20px; /* Safe area */
-    }
-
-    #ui-container .minimize-btn, 
-    #ui-container .opacity-slider {
-        display: none; /* Simplify UI */
-    }
-
-    /* Chat Window -> Bottom Sheet */
-    #chat-container {
+    /* Windows as Bottom Sheets */
+    #ui-container, #chat-container {
         position: fixed !important;
+        top: auto !important;
         bottom: 0 !important;
         left: 0 !important;
         right: 0 !important;
-        top: auto !important;
         width: 100% !important;
-        height: 40vh !important;
-        max-height: 50vh !important;
+        max-width: 100% !important;
+        height: auto !important;
+        max-height: 70vh !important;
         border-radius: 20px 20px 0 0 !important;
-        border-left: none;
-        border-right: none;
-        border-bottom: none;
-        transition: height 0.3s ease;
-        padding-bottom: env(safe-area-inset-bottom, 20px);
-    }
-    
-    #chat-container.minimized {
-        height: 60px !important;
-        width: 100% !important;
+        transform: translateY(120%); /* Hide below screen */
+        transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+        z-index: 2001 !important; /* Above overlay */
+        padding-bottom: 80px; /* Space for nav bar */
+        box-sizing: border-box;
+        box-shadow: 0 -4px 20px rgba(0,0,0,0.4);
+        display: flex !important; /* Ensure they are not hidden by display:none */
+        flex-direction: column;
     }
 
-    #chat-container .window-header {
-        cursor: pointer; /* Tap to toggle minimize? */
+    /* Active state for sheets */
+    #ui-container.sheet-active, #chat-container.sheet-active {
+        transform: translateY(0);
+    }
+    
+    /* Adjust internal layout for mobile */
+    .window-header {
         justify-content: center;
+        padding: 15px;
+        cursor: default; /* Disable drag cursor */
     }
     
-    #chat-container .window-title {
-        font-size: 1.1em;
+    .window-title {
+        font-size: 1.2em;
+    }
+    
+    /* Hide desktop controls on mobile */
+    .minimize-btn, .opacity-slider {
+        display: none !important;
     }
 
-    /* Adjust Inputs for Touch */
+    /* Chat specifics */
+    #chat-container {
+        height: 60vh !important; /* Fixed height for chat to ensure input visibility */
+    }
+    
+    #chat-messages {
+        flex-grow: 1;
+    }
+
+    /* Touch targets */
     input[type="text"], 
     button, 
     .model-item {
-        min-height: 44px; /* Touch target size */
+        min-height: 44px;
         font-size: 16px; /* Prevent iOS zoom */
     }
-
-    /* Speech Bubble on Mobile */
+    
+    /* Speech Bubble adjustments */
     .speech-bubble {
-        bottom: 45vh; /* Above chat window */
-        width: 90%;
-        max-width: none;
-        font-size: 14px;
-        padding: 10px;
-    }
-
-    /* Hide settings panel better on mobile */
-    #settings-panel {
-        width: 90%;
-        max-width: none;
+        bottom: 50%;
+        width: 80%;
     }
 }
 
