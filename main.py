@@ -150,7 +150,7 @@ client = AsyncOpenAI(
 
 class GlobalConfig:
     def __init__(self):
-        self.system_prompt = "你是一个可爱的二次元少女，说话语气活泼，喜好嘻嘻嘻。"
+        self.system_prompt = "你是一个可爱的二次元少女，说话语气活泼，喜好主人。（注意：不要发送颜文字、emoji等无关的标点符号）"
         self.history = [] 
 
 config = GlobalConfig()

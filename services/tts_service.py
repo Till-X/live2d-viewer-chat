@@ -38,7 +38,7 @@ class TTSService:
             "audio": {
                 "voice_type": voice_type,
                 "encoding": "mp3", # Use MP3 for web playback
-                "speed_ratio": 1.3,
+                "speed_ratio": 1.4,
                 "volume_ratio": 1.0,
                 "pitch_ratio": 1.0,
             },
