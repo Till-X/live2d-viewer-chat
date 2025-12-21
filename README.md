@@ -10,6 +10,7 @@
 
 *   **Live2D 模型展示**: 支持 Cubism 2.0 和 4.0 版本的 Live2D 模型加载与交互（视线跟随、点击反馈）。
 *   **AI 智能对话**: 集成 LLM（大语言模型），模型不仅能对话，还能根据对话内容触发动作。
+*   **TTS 语音合成**: 集成火山引擎 TTS，支持流式语音播放（边生成边播放），实现自然的对话体验。
 *   **自定义人设**: 用户可以随时调整 AI 的系统提示词（System Prompt），打造个性化虚拟助手。
 *   **一键部署**: 前后端分离架构但统一托管，支持 Docker 或直接 Python 脚本快速部署。
 *   **模型管理**: 提供简单的 Web 界面进行模型的上传、切换和删除。
@@ -78,8 +79,9 @@
 *   **模型查看器**: 基于 `pixi-live2d-display`，支持拖拽、缩放模型。
 *   **聊天系统**:
     *   后端维护对话历史上下文（默认保留最近 20 轮）。
-    *   支持流式或非流式响应（当前版本为非流式）。
-    *   `/api/chat` 接口负责处理对话逻辑。
+    *   支持流式或非流式响应（当前版本支持流式输出 + TTS 同步播放）。
+    *   `/api/chat` 接口负责处理对话逻辑（SSE 流式）。
+    *   `/api/tts` 接口负责文本转语音。
 *   **设置面板**:
     *   可以实时修改 `system_prompt`，改变 AI 的说话语气和性格。
     *   设置保存在内存中，重启服务后重置。
@@ -94,7 +96,8 @@
 | `GET` | `/api/models` | 获取所有已上传的模型列表 |
 | `POST` | `/api/upload` | 上传并解压 Live2D 模型 zip 包 |
 | `DELETE`| `/api/models/{name}`| 删除指定模型 |
-| `POST` | `/api/chat` | 发送用户消息获取 AI 回复 |
+| `POST` | `/api/chat` | 发送用户消息获取 AI 回复 (SSE Stream) |
+| `POST` | `/api/tts` | 文本转语音接口 (Streaming Audio) |
 | `GET` | `/api/settings` | 获取当前系统提示词 (System Prompt) |
 | `POST` | `/api/settings` | 更新系统提示词 |
 | `POST` | `/api/reset` | 清空对话历史 |
@@ -121,7 +124,8 @@
 ```text
 live2d-viewer/
 ├── models/             # 存放上传的 Live2D 模型文件
-├── lib/                # 前端依赖库 (Live2D SDKs)
+├── core_libs/          # 前端依赖库 (Live2D SDKs)
+├── services/           # 后端服务模块 (TTS 等)
 ├── index.html          # 前端入口页面
 ├── script.js           # 前端主要逻辑
 ├── style.css           # 样式文件
