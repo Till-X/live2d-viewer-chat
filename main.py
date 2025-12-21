@@ -13,6 +13,20 @@ import openai
 from openai import AsyncOpenAI
 import json
 from services.tts_service import tts_service
+from services.llm_service import llm_service
+import yaml
+
+# Load Config
+def load_config():
+    config_path = "config.yaml"
+    if os.path.exists(config_path):
+        with open(config_path, 'r', encoding='utf-8') as f:
+            return yaml.safe_load(f)
+    return {}
+
+app_config = load_config()
+server_config = app_config.get('server', {})
+# LLM config is now handled in llm_service
 
 app = FastAPI()
 
@@ -142,19 +156,6 @@ async def delete_model(model_name: str):
 
 # --- Chat & LLM Integration ---
 
-api_key = os.environ.get("ARK_API_KEY", "1dfed9d9-db49-4985-b4e9-1dcb090e5e93")
-client = AsyncOpenAI(
-    base_url="https://ark.cn-beijing.volces.com/api/v3",
-    api_key=api_key
-)
-
-class GlobalConfig:
-    def __init__(self):
-        self.system_prompt = "你是一个可爱的二次元少女，说话语气活泼，喜好主人。（注意：不要发送颜文字、emoji等无关的标点符号）"
-        self.history = [] 
-
-config = GlobalConfig()
-
 class ChatRequest(BaseModel):
     text: str
 
@@ -179,40 +180,11 @@ async def tts_endpoint(request: TTSRequest):
 @app.post("/api/chat")
 async def chat_endpoint(request: ChatRequest):
     user_input = request.text
-    config.history.append({"role": "user", "content": user_input})
-    
-    messages = [
-        {"role": "system", "content": config.system_prompt}
-    ] + config.history
     
     async def generate():
-        full_response = ""
         try:
-            if api_key == "YOUR_API_KEY":
-                import asyncio
-                # Mock streaming
-                mock_text = f"This is a mock response because no ARK_API_KEY is set. You said: {user_input} 😸"
-                for char in mock_text:
-                    await asyncio.sleep(0.05)
-                    full_response += char
-                    yield f"data: {json.dumps({'content': char})}\n\n"
-            else:
-                stream = await client.chat.completions.create(
-                    model="deepseek-v3-1-terminus",
-                    messages=messages,
-                    stream=True
-                )
-                async for chunk in stream:
-                    if chunk.choices and chunk.choices[0].delta.content:
-                        content = chunk.choices[0].delta.content
-                        full_response += content
-                        yield f"data: {json.dumps({'content': content})}\n\n"
-            
-            # Save history after completion
-            config.history.append({"role": "assistant", "content": full_response})
-            if len(config.history) > 20:
-                config.history = config.history[-20:]
-                
+            async for content in llm_service.chat_stream(user_input):
+                yield f"data: {json.dumps({'content': content})}\n\n"
         except Exception as e:
             print(f"Stream Error: {e}")
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
@@ -221,16 +193,16 @@ async def chat_endpoint(request: ChatRequest):
 
 @app.get("/api/settings")
 async def get_settings():
-    return {"system_prompt": config.system_prompt}
+    return {"system_prompt": llm_service.system_prompt}
 
 @app.post("/api/settings")
 async def update_settings(request: SettingsRequest):
-    config.system_prompt = request.system_prompt
-    return {"message": "Settings updated", "system_prompt": config.system_prompt}
+    llm_service.update_system_prompt(request.system_prompt)
+    return {"message": "Settings updated", "system_prompt": llm_service.system_prompt}
 
 @app.post("/api/reset")
 async def reset_chat():
-    config.history = []
+    llm_service.clear_history()
     return {"message": "Chat history cleared"}
 
 # --- Static Files & Root ---
@@ -249,6 +221,8 @@ app.mount("/", StaticFiles(directory=".", html=True), name="root")
 
 if __name__ == "__main__":
     import uvicorn
-    # Run the server on 0.0.0.0 to make it accessible externally
-    print("Starting server on 0.0.0.0:8000")
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    # Run the server
+    host = server_config.get("host", "0.0.0.0")
+    port = server_config.get("port", 8000)
+    print(f"Starting server on {host}:{port}")
+    uvicorn.run("main:app", host=host, port=port, reload=True)

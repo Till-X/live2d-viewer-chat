@@ -1,0 +1,18 @@
+# Server Configuration
+server:
+  host: "0.0.0.0"
+  port: 8000
+
+# LLM Configuration (Volcano Engine / OpenAI Compatible)
+llm:
+  api_key: "YOUR_ARK_API_KEY"
+  base_url: "https://ark.cn-beijing.volces.com/api/v3"
+  model: "deepseek-v3-1-terminus"
+  system_prompt: "你是一个可爱的二次元少女，说话语气活泼，喜好嘻嘻嘻。"
+
+# TTS Configuration (Volcano Engine)
+tts:
+  appid: "YOUR_APP_ID"
+  access_token: "YOUR_ACCESS_TOKEN"
+  cluster: "volcano_tts"
+  voice_type: "zh_female_meilinvyou_moon_bigtts"

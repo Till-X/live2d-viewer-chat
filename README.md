@@ -47,12 +47,8 @@
     pip install -r requirements.txt
     ```
 
-4.  **配置环境变量 (可选)**
-    如果需要使用真实 AI 对话功能，请设置 API Key：
-    ```bash
-    export ARK_API_KEY="your-api-key-here"
-    ```
-    *(如果不设置，系统将使用模拟回复模式)*
+4.  **配置环境**
+    请参考下文 [配置文件](#配置文件) 章节，创建并编辑 `config.yaml` 文件。
 
 5.  **启动服务**
     ```bash
@@ -104,10 +100,32 @@
 
 ### 配置文件
 
-项目目前主要依赖环境变量进行配置：
+项目使用 `config.yaml` 进行统一配置管理。请复制 `config.example.yaml` 为 `config.yaml` 并填入您的实际配置。
 
-*   `ARK_API_KEY`: 火山引擎/OpenAI 兼容接口的 API 密钥。
-*   `PORT` (可选): `main.py` 中默认为 8000，可通过修改代码或传入参数调整。
+1.  **复制配置文件**
+    ```bash
+    cp config.example.yaml config.yaml
+    ```
+
+2.  **编辑 `config.yaml`**
+    ```yaml
+    # Server Configuration
+    server:
+      host: "0.0.0.0"
+      port: 8000
+    
+    # LLM Configuration
+    llm:
+      api_key: "YOUR_ARK_API_KEY"
+      ...
+    
+    # TTS Configuration
+    tts:
+      appid: "YOUR_APP_ID"
+      ...
+    ```
+
+> 注意：`config.yaml` 包含敏感信息，已被加入 `.gitignore`，请勿提交到版本控制系统。
 
 ---
 
@@ -130,6 +148,7 @@ live2d-viewer/
 ├── script.js           # 前端主要逻辑
 ├── style.css           # 样式文件
 ├── main.py             # FastAPI 后端入口
+├── config.example.yaml # 配置文件模版
 └── requirements.txt    # Python 依赖列表
 ```
 

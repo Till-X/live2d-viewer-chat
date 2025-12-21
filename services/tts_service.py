@@ -2,18 +2,28 @@ import httpx
 import json
 import uuid
 import base64
+import yaml
+import os
 
 class TTSService:
     def __init__(self):
-        # Default credentials from demo (should be environment variables in production)
-        self.appid = "5858061796"
-        self.access_token = "r3NpcuEDSkGyrv_dBBaTkv3f3CiApQCI"
-        self.cluster = "volcano_tts"
+        self.config = self._load_config()
+        tts_config = self.config.get('tts', {})
+        
+        self.appid = tts_config.get('appid', "")
+        self.access_token = tts_config.get('access_token', "")
+        self.cluster = tts_config.get('cluster', "volcano_tts")
         self.host = "openspeech.bytedance.com"
         self.api_url = f"https://{self.host}/api/v1/tts"
         
-        # Default voice
-        self.default_voice = "zh_female_meilinvyou_moon_bigtts"
+        self.default_voice = tts_config.get('voice_type', "zh_female_meilinvyou_moon_bigtts")
+
+    def _load_config(self):
+        config_path = "config.yaml"
+        if os.path.exists(config_path):
+            with open(config_path, 'r', encoding='utf-8') as f:
+                return yaml.safe_load(f)
+        return {}
 
     async def synthesize(self, text: str, voice_type: str = None) -> bytes:
         """
