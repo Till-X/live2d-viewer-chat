@@ -1,6 +1,6 @@
 # Live2D Viewer & Chat Assistant
 
-![Live2D Viewer](./docs/assets/images/Live2D+Viewer.png)
+![Live2D Viewer](./docs/images/Live2D+Viewer.png)
 
 > 一个集成了 Live2D 模型展示与 AI 智能对话功能的 Web 应用。
 
@@ -10,6 +10,7 @@
 
 *   **Live2D 模型展示**: 支持 Cubism 2.0 和 4.0 版本的 Live2D 模型加载与交互（视线跟随、点击反馈）。
 *   **AI 智能对话**: 集成 LLM（大语言模型），模型不仅能对话，还能根据对话内容触发动作。
+*   **ASR 实时语音识别**: 集成火山引擎 ASR，支持按住说话（Hold-to-Speak），低延迟实时转换。
 *   **TTS 语音合成**: 集成火山引擎 TTS，支持流式语音播放（边生成边播放），实现自然的对话体验。
 *   **自定义人设**: 用户可以随时调整 AI 的系统提示词（System Prompt），打造个性化虚拟助手。
 *   **一键部署**: 前后端分离架构但统一托管，支持 Docker 或直接 Python 脚本快速部署。
@@ -65,6 +66,7 @@
 2.  **上传模型**: 点击右侧面板的 "Upload .zip" 按钮，上传包含 Live2D 模型文件的 zip 包。
 3.  **切换模型**: 上传成功后，点击列表中的模型名称即可切换。
 4.  **对话**: 在左下角聊天框输入内容并发送，AI 将根据设定的人设进行回复。
+5.  **语音输入**: 长按麦克风按钮说话，松开后自动发送。
 
 ---
 
@@ -78,25 +80,27 @@
     *   支持流式或非流式响应（当前版本支持流式输出 + TTS 同步播放）。
     *   `/api/chat` 接口负责处理对话逻辑（SSE 流式）。
     *   `/api/tts` 接口负责文本转语音。
+    *   `/ws/asr` WebSocket 接口负责实时语音识别。
 *   **设置面板**:
     *   可以实时修改 `system_prompt`，改变 AI 的说话语气和性格。
     *   设置保存在内存中，重启服务后重置。
 
 ### API 文档
 
-后端提供 RESTful API，主要端点如下：
+为了保持文档清晰，详细的 API 说明已移至单独的文档：
+
+👉 **[API 文档 (docs/API.md)](./docs/API.md)**
+
+简要接口列表：
 
 | 方法 | 路径 | 描述 |
 | :--- | :--- | :--- |
-| `GET` | `/` | 返回主页 (index.html) |
-| `GET` | `/api/models` | 获取所有已上传的模型列表 |
-| `POST` | `/api/upload` | 上传并解压 Live2D 模型 zip 包 |
-| `DELETE`| `/api/models/{name}`| 删除指定模型 |
-| `POST` | `/api/chat` | 发送用户消息获取 AI 回复 (SSE Stream) |
-| `POST` | `/api/tts` | 文本转语音接口 (Streaming Audio) |
-| `GET` | `/api/settings` | 获取当前系统提示词 (System Prompt) |
-| `POST` | `/api/settings` | 更新系统提示词 |
-| `POST` | `/api/reset` | 清空对话历史 |
+| `GET` | `/api/models` | 获取模型列表 |
+| `POST` | `/api/chat` | 发送对话 (Stream) |
+| `POST` | `/api/tts` | 文本转语音 |
+| `WS` | `/ws/asr` | 实时语音识别 |
+
+完整接口定义、参数说明及 WebSocket 协议细节请查阅上述文档。
 
 ### 配置文件
 
@@ -123,6 +127,12 @@
     tts:
       appid: "YOUR_APP_ID"
       ...
+
+    # ASR Configuration
+    asr:
+      appid: "YOUR_APP_ID"
+      token: "YOUR_ACCESS_TOKEN"
+      cluster: "volcengine_input_common"
     ```
 
 ---
