@@ -1,6 +1,6 @@
 # Live2D Viewer & Chat Assistant
 
-![Live2D Viewer](./assets/images/Live2D+Viewer.png)
+![Live2D Viewer](./docs/assets/images/Live2D+Viewer.png)
 
 > 一个集成了 Live2D 模型展示与 AI 智能对话功能的 Web 应用。
 
@@ -139,15 +139,21 @@
 
 ```text
 live2d-viewer/
-├── models/             # 存放上传的 Live2D 模型文件
-├── core_libs/          # 前端依赖库 (Live2D SDKs)
-├── services/           # 后端服务模块 (TTS 等)
-├── index.html          # 前端入口页面
-├── script.js           # 前端主要逻辑
-├── style.css           # 样式文件
-├── main.py             # FastAPI 后端入口
-├── config.example.yaml # 配置文件模版
-└── requirements.txt    # Python 依赖列表
+├── main.py             # [后端] FastAPI 入口
+├── config.yaml         # [配置] 配置文件 (不公开)
+├── services/           # [后端] 业务逻辑层
+│   ├── asr_service.py
+│   ├── tts_service.py
+│   └── llm_service.py
+├── static/             # [前端] 静态资源目录
+│   ├── index.html      # 页面入口
+│   ├── script.js       # 交互逻辑
+│   ├── style.css       # 样式文件
+│   ├── audio-processor.js # 音频处理 Worklet
+│   └── core_libs/      # Live2D SDK 等依赖
+├── docs/               # [文档] 文档图片资源
+├── models/             # [数据] 上传的模型文件存储
+└── requirements.txt    # Python 依赖
 ```
 
 ### 代码贡献

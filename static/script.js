@@ -431,7 +431,7 @@ window.PIXI = PIXI;
                 try {
                     // Init Audio Processing
                     audioContext = new AudioContext({ sampleRate: 16000 });
-                    await audioContext.audioWorklet.addModule('audio-processor.js');
+                    await audioContext.audioWorklet.addModule('/static/audio-processor.js');
                     
                     const source = audioContext.createMediaStreamSource(stream);
                     const processor = new AudioWorkletNode(audioContext, 'audio-processor');

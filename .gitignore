@@ -36,9 +36,7 @@ ENV/
 .DS_Store
 Thumbs.db
 
-# Models (Optional: if models are large, you might want to ignore them or use LFS, but for now we keep them)
+# Project Specific
 models/
-demo/
-
-# Configuration
 config.yaml
+*.log

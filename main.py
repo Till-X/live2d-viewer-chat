@@ -289,12 +289,10 @@ async def read_root():
     """
     Serve the index.html page at root.
     """
-    return FileResponse("index.html")
+    return FileResponse("static/index.html")
 
-# Mount the root directory to serve static files (script.js, style.css, etc.)
-# WARNING: This exposes all files in the root directory (including main.py).
-# Ensure sensitive files are excluded or handled securely in production.
-app.mount("/", StaticFiles(directory=".", html=True), name="root")
+# Mount the static directory to serve static files (script.js, style.css, etc.)
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 if __name__ == "__main__":
     import uvicorn
