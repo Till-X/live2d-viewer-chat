@@ -125,8 +125,6 @@
       ...
     ```
 
-> 注意：`config.yaml` 包含敏感信息，已被加入 `.gitignore`，请勿提交到版本控制系统。
-
 ---
 
 ## 🛠 开发指南
@@ -171,7 +169,7 @@ live2d-viewer/
 ### 联系方式
 
 如有问题或建议，请提交 Issue 或联系开发者：
-*   Email: tangxun@example.com
+*   Email: tang18508416901@outlook.com
 
 ### 致谢
 
