@@ -406,6 +406,139 @@ window.PIXI = PIXI;
         }, 5000); // 5 seconds for reading
     }
 
+    // --- ASR Logic ---
+    const micBtn = document.getElementById('mic-btn');
+    const asrStatus = document.getElementById('asr-status');
+    let mediaRecorder;
+    let audioContext;
+    let asrSocket;
+    let isRecording = false;
+
+    async function startRecording() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            
+            // Init WebSocket
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            asrSocket = new WebSocket(`${protocol}//${window.location.host}/ws/asr`);
+            
+            asrSocket.onopen = async () => {
+                console.log("ASR WebSocket Open");
+                micBtn.classList.add('recording');
+                isRecording = true;
+                asrStatus.textContent = "Listening...";
+                
+                try {
+                    // Init Audio Processing
+                    audioContext = new AudioContext({ sampleRate: 16000 });
+                    await audioContext.audioWorklet.addModule('audio-processor.js');
+                    
+                    const source = audioContext.createMediaStreamSource(stream);
+                    const processor = new AudioWorkletNode(audioContext, 'audio-processor');
+                    
+                    processor.port.onmessage = (e) => {
+                        if (!isRecording || asrSocket.readyState !== WebSocket.OPEN) return;
+                        asrSocket.send(e.data);
+                    };
+                    
+                    source.connect(processor);
+                    processor.connect(audioContext.destination);
+                } catch (e) {
+                    console.error("AudioWorklet setup error:", e);
+                    stopRecording();
+                }
+            };
+
+            asrSocket.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.text) {
+                    chatInput.value = data.text;
+                } 
+                
+                if (data.is_final) {
+                    console.log("ASR Finished");
+                    // Stop cleanup is already done partially in stopRecording, 
+                    // but ensure everything is clean.
+                    stopRecordingCleanup(); 
+                    asrSocket.close();
+                    
+                    // Auto send
+                    if (chatInput.value.trim()) {
+                        sendMessage();
+                    }
+                } else if (data.error) {
+                    console.error("ASR Error:", data.error);
+                    asrStatus.textContent = "Error";
+                }
+            };
+
+            asrSocket.onclose = () => {
+                console.log("ASR WebSocket Closed");
+                stopRecordingCleanup();
+            };
+
+        } catch (err) {
+            console.error("Microphone access error:", err);
+            alert("Microphone access denied or error: " + err.message);
+        }
+    }
+
+    function stopRecording() {
+        if (asrSocket && asrSocket.readyState === WebSocket.OPEN) {
+            // Send stop signal
+            asrSocket.send(JSON.stringify({ type: "stop" }));
+        }
+        
+        // Stop audio capture locally
+        isRecording = false;
+        micBtn.classList.remove('recording');
+        asrStatus.textContent = "Processing...";
+        
+        if (audioContext) {
+            audioContext.close();
+            audioContext = null;
+        }
+    }
+
+    function stopRecordingCleanup() {
+        isRecording = false;
+        micBtn.classList.remove('recording');
+        asrStatus.textContent = "";
+        
+        if (audioContext) {
+            audioContext.close();
+            audioContext = null;
+        }
+        // Stop all tracks
+        // (If we stored the stream, we should stop it here to release mic)
+    }
+
+    // Mic Button Events
+    // Desktop: Click to toggle (or Hold?) Let's do Click Toggle for simplicity first
+    // Mobile: Touch Hold is better, but Toggle is easier to implement cross-platform initially.
+    // User requirement: "Hold to Speak" usually implies hold. Let's try Hold.
+    
+    micBtn.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        startRecording();
+    });
+
+    micBtn.addEventListener('mouseup', (e) => {
+        e.preventDefault();
+        stopRecording();
+    });
+    
+    micBtn.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        startRecording();
+    });
+
+    micBtn.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        stopRecording();
+    });
+
+
     // --- Audio Queue Management ---
     class AudioQueue {
         constructor() {
@@ -416,9 +549,24 @@ window.PIXI = PIXI;
             // Order management
             this.pendingAudios = new Map(); // Stores { index: blob }
             this.nextIndex = 0;
+            
+            // Session management to handle interruptions
+            this.currentSessionId = 0;
         }
 
-        add(audioBlob, index) {
+        startSession() {
+            this.stop(); // Clear previous session
+            this.currentSessionId++;
+            return this.currentSessionId;
+        }
+
+        add(audioBlob, index, sessionId) {
+            // Discard if from an old session
+            if (sessionId !== this.currentSessionId) {
+                console.log(`Discarding audio from old session ${sessionId} (current: ${this.currentSessionId})`);
+                return;
+            }
+
             // Store in buffer
             this.pendingAudios.set(index, audioBlob);
             // Try to move from buffer to play queue
@@ -473,6 +621,7 @@ window.PIXI = PIXI;
             this.isPlaying = false;
             this.pendingAudios.clear();
             this.nextIndex = 0;
+            // Note: We don't increment currentSessionId here, only in startSession
         }
     }
 
@@ -494,8 +643,8 @@ window.PIXI = PIXI;
         // UI Updates
         appendMessage('user', text);
         
-        // Stop previous audio if any
-        audioQueue.stop();
+        // Start new audio session (invalidates old requests)
+        const sessionId = audioQueue.startSession();
 
         // Only handle input UI if it was a manual user entry (not programmatic)
         if (!manualText) {
@@ -567,9 +716,21 @@ window.PIXI = PIXI;
                                             headers: { 'Content-Type': 'application/json' },
                                             body: JSON.stringify({ text: sentence })
                                         })
-                                        .then(res => res.blob())
-                                        .then(blob => audioQueue.add(blob, currentIndex))
-                                        .catch(e => console.error("TTS Error:", e));
+                                        .then(async res => {
+                                            if (!res.ok) {
+                                                const errText = await res.text();
+                                                throw new Error(`TTS API Error: ${res.status} ${errText}`);
+                                            }
+                                            return res.blob();
+                                        })
+                                        .then(blob => {
+                                            if (blob.size > 0) {
+                                                audioQueue.add(blob, currentIndex, sessionId);
+                                            } else {
+                                                console.warn("Received empty audio blob for sentence:", sentence);
+                                            }
+                                        })
+                                        .catch(e => console.error("TTS Fetch Error:", e));
                                     }
                                 }
                             }
@@ -588,9 +749,19 @@ window.PIXI = PIXI;
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ text: ttsBuffer.trim() })
                 })
-                .then(res => res.blob())
-                .then(blob => audioQueue.add(blob, currentIndex))
-                .catch(e => console.error("TTS Error:", e));
+                .then(async res => {
+                    if (!res.ok) {
+                        const errText = await res.text();
+                        throw new Error(`TTS API Error: ${res.status} ${errText}`);
+                    }
+                    return res.blob();
+                })
+                .then(blob => {
+                    if (blob.size > 0) {
+                        audioQueue.add(blob, currentIndex, sessionId);
+                    }
+                })
+                .catch(e => console.error("TTS Fetch Error:", e));
             }
 
         } catch (error) {

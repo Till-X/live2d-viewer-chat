@@ -16,3 +16,9 @@ tts:
   access_token: "YOUR_ACCESS_TOKEN"
   cluster: "volcano_tts"
   voice_type: "zh_female_meilinvyou_moon_bigtts"
+
+# ASR Configuration (Volcano Engine)
+asr:
+  appid: "YOUR_APP_ID"
+  token: "YOUR_ACCESS_TOKEN"
+  cluster: "volcengine_streaming_common"

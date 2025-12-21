@@ -61,7 +61,7 @@ class TTSService:
         }
 
         headers = {
-            "Authorization": f"Bearer;{self.access_token}",
+            "Authorization": f"Bearer; {self.access_token}",
             "Content-Type": "application/json"
         }
 
@@ -75,8 +75,9 @@ class TTSService:
                 )
                 
                 if response.status_code != 200:
+                    print(f"TTS Request Payload: {json.dumps(request_json, ensure_ascii=False)}")
                     print(f"TTS Error {response.status_code}: {response.text}")
-                    raise Exception(f"TTS API returned {response.status_code}")
+                    raise Exception(f"TTS API returned {response.status_code}: {response.text}")
 
                 # Response structure check
                 # Volcano HTTP API usually returns JSON with "data" field containing base64 audio

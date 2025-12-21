@@ -14,7 +14,9 @@ from openai import AsyncOpenAI
 import json
 from services.tts_service import tts_service
 from services.llm_service import llm_service
+from services.asr_service import asr_service
 import yaml
+from fastapi import WebSocket, WebSocketDisconnect
 
 # Load Config
 def load_config():
@@ -204,6 +206,81 @@ async def update_settings(request: SettingsRequest):
 async def reset_chat():
     llm_service.clear_history()
     return {"message": "Chat history cleared"}
+
+@app.websocket("/ws/asr")
+async def websocket_asr(websocket: WebSocket):
+    await websocket.accept()
+    print("ASR WebSocket Connected")
+    
+    try:
+        # Create an async generator to yield chunks from websocket
+        async def audio_generator():
+            try:
+                while True:
+                    # Receive can be bytes (audio) or text (control)
+                    message = await websocket.receive()
+                    
+                    if "bytes" in message:
+                        yield message["bytes"]
+                    elif "text" in message:
+                        try:
+                            data = json.loads(message["text"])
+                            if data.get("type") == "stop":
+                                break
+                        except:
+                            pass
+                    
+                    if message["type"] == "websocket.disconnect":
+                        break
+                        
+            except WebSocketDisconnect:
+                pass
+            except Exception as e:
+                # Handle 1007 error gracefully (invalid payload)
+                print(f"WS Recv Error: {e}")
+
+        # Process via ASR Service
+        last_text = ""
+        async for result in asr_service.stream_asr(audio_generator()):
+            try:
+                if "error" in result:
+                    await websocket.send_json(result)
+                    break
+                
+                if "text" in result:
+                    last_text = result["text"]
+                    
+                await websocket.send_json(result)
+            except Exception as e:
+                # If connection closed, stop sending
+                print(f"WS Send Error: {e}")
+                break
+        
+        # Send final completion signal
+        try:
+            if websocket.client_state.name == "CONNECTED":
+                await websocket.send_json({"text": last_text, "is_final": True})
+        except Exception as e:
+            print(f"WS Final Send Error: {e}")
+            
+    except WebSocketDisconnect:
+        print("ASR WebSocket Disconnected by Client")
+    except Exception as e:
+        print(f"ASR WS Error: {e}")
+        try:
+            # Only send error if connection is still open
+            if websocket.client_state.name == "CONNECTED":
+                await websocket.send_json({"error": str(e)})
+        except:
+            pass
+    finally:
+        try:
+            # Only close if not already closed
+            if websocket.client_state.name == "CONNECTED":
+                await websocket.close()
+        except:
+            pass
+        print("ASR WebSocket Closed")
 
 # --- Static Files & Root ---
 
